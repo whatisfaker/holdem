@@ -1,29 +1,29 @@
 package holdem
 
+import "go.uber.org/zap"
+
+type Bet struct {
+	num    int8
+	bet    int64
+	action int8
+}
+
 type Player struct {
 	game         *Game
-	num          int8
+	number       int8
 	handCards    [2]*Card
 	maxHandValue *HandValue
+	log          *zap.Logger
+	bringIn      int64
+	listener     PlayerListener
 }
 
-type PlayerListener interface {
-	PreFlop(*Game, [2]*Card) error
-	Flop(*Game, []*Card) error
-	Turn(*Game, *Card) error
-	River(*Game, *Card) error
-	Bet(*Game, *Player, int64) error
-	Call(*Game, *Player) error
-	Fold(*Game, *Player) error
-	Raise(*Game, *Player, int64) error
-	AllIn(*Game, *Player, int64) error
-}
-
-func NewPlayer(game *Game, num int8) *Player {
+func NewPlayer(game *Game, num int8, log *zap.Logger) *Player {
 	return &Player{
 		game:      game,
-		num:       num,
+		number:    num,
 		handCards: [2]*Card{},
+		log:       log,
 	}
 }
 
@@ -37,6 +37,26 @@ func (c *Player) CaculateMaxHandValue(pc []*Card) error {
 	return nil
 }
 
-func (c *Player) HandCards([]*Card) {
+func (c *Player) HandCard(card *Card) error {
+	if c.handCards[0] == nil {
+		c.handCards[0] = card
+		return nil
+	}
+	c.handCards[1] = card
+	return c.listener.PreFlop(c.game, c.handCards)
+}
 
+func (c *Player) Blinds(chip int64) {
+	c.bringIn -= chip
+	c.game.pod += chip
+}
+
+func (c *Player) Bet(chip int64) {
+	c.bringIn -= chip
+	c.game.pod += chip
+	c.game.betCh <- &Bet{
+		num:    c.number,
+		action: ActionBet,
+		bet:    chip,
+	}
 }
