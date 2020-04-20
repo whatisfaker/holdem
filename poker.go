@@ -83,7 +83,7 @@ func GetMaxHandValueFromCard(nc []*Card) (*HandValue, error) {
 		if err != nil {
 			return nil, err
 		}
-		return GetMaxHandValue(hands...)[0], nil
+		return getMaxHandValue(hands...)[0], nil
 	case 7:
 		hands := make([]*HandValue, 0)
 		err := comb(7, 5, func(out []int) error {
@@ -101,12 +101,30 @@ func GetMaxHandValueFromCard(nc []*Card) (*HandValue, error) {
 		if err != nil {
 			return nil, err
 		}
-		return GetMaxHandValue(hands...)[0], nil
+		return getMaxHandValue(hands...)[0], nil
 	}
 	return nil, fmt.Errorf("Unsupported card length")
 }
 
-func GetMaxHandValue(hvs ...*HandValue) []*HandValue {
+//GetMaxHandValue 通过标记获得最大的标记牌型
+func GetMaxHandValue(hvs map[int8]*HandValue) map[int8]*HandValue {
+	var maxValue int64
+	ret := make(map[int8]*HandValue)
+	for _, v := range hvs {
+		if v.value > maxValue {
+			maxValue = v.value
+		}
+	}
+	for num, v := range hvs {
+		if v.value == maxValue {
+			ret[num] = v
+		}
+	}
+	return ret
+}
+
+//getMaxHandValue 从一组牌型中找到最大的
+func getMaxHandValue(hvs ...*HandValue) []*HandValue {
 	var maxValue int64
 	ret := make([]*HandValue, 0)
 	for _, v := range hvs {
