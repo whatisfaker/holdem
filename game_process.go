@@ -8,7 +8,7 @@ import (
 )
 
 //递归投注
-func (c *game) waitBet(waitPlayerNum int8, duration time.Duration) (bool, error) {
+func (c *game) waitBet(waitPlayerSeat int8, duration time.Duration) (bool, error) {
 	tm := time.NewTimer(duration)
 	defer tm.Stop()
 	select {
@@ -17,88 +17,65 @@ func (c *game) waitBet(waitPlayerNum int8, duration time.Duration) (bool, error)
 			c.log.Error("betCh error")
 			return false, errors.New("betCh error ")
 		}
-		if waitPlayerNum != bet.num {
-			c.log.Error("wait user wrong", zap.Int8("waitfor", waitPlayerNum), zap.Int8("comming", bet.num))
+		if waitPlayerSeat != bet.seat {
+			c.log.Error("wait user wrong", zap.Int8("waitfor", waitPlayerSeat), zap.Int8("comming", bet.seat))
 			return false, errors.New("wait user wrong ")
 		}
 		switch bet.action {
 		case ActionBet:
+			//通知有人下注
 			for i, v := range c.players {
-				if i != bet.num {
-					err := v.listener.PlayerBet(c, c.players[bet.num], bet.bet)
+				if i != bet.seat {
+					err := v.listener.PlayerBet(c, c.players[bet.seat], bet.bet)
 					if err != nil {
 						return false, err
 					}
 				}
-			}
-			err := c.listener.PlayerBet(c, c.players[bet.num], bet.bet)
-			if err != nil {
-				return false, err
 			}
 		case ActionCall:
 			for i, v := range c.players {
-				if i != bet.num {
-					err := v.listener.PlayerCall(c, c.players[bet.num], bet.bet)
+				if i != bet.seat {
+					err := v.listener.PlayerCall(c, c.players[bet.seat], bet.bet)
 					if err != nil {
 						return false, err
 					}
 				}
-			}
-			err := c.listener.PlayerCall(c, c.players[bet.num], bet.bet)
-			if err != nil {
-				return false, err
 			}
 		case ActionFold:
 			for i, v := range c.players {
-				if i != bet.num {
-					err := v.listener.PlayerFold(c, c.players[bet.num])
+				if i != bet.seat {
+					err := v.listener.PlayerFold(c, c.players[bet.seat])
 					if err != nil {
 						return false, err
 					}
 				}
-			}
-			err := c.listener.PlayerFold(c, c.players[bet.num])
-			if err != nil {
-				return false, err
 			}
 		case ActionCheck:
 			for i, v := range c.players {
-				if i != bet.num {
-					err := v.listener.PlayerCheck(c, c.players[bet.num])
+				if i != bet.seat {
+					err := v.listener.PlayerCheck(c, c.players[bet.seat])
 					if err != nil {
 						return false, err
 					}
 				}
-			}
-			err := c.listener.PlayerCheck(c, c.players[bet.num])
-			if err != nil {
-				return false, err
 			}
 		case ActionRaise:
 			for i, v := range c.players {
-				if i != bet.num {
-					err := v.listener.PlayerRaise(c, c.players[bet.num], bet.bet)
+				if i != bet.seat {
+					err := v.listener.PlayerRaise(c, c.players[bet.seat], bet.bet)
 					if err != nil {
 						return false, err
 					}
 				}
-			}
-			err := c.listener.PlayerRaise(c, c.players[bet.num], bet.bet)
-			if err != nil {
-				return false, err
 			}
 		case ActionAllIn:
 			for i, v := range c.players {
-				if i != bet.num {
-					err := v.listener.PlayerAllIn(c, c.players[bet.num], bet.bet)
+				if i != bet.seat {
+					err := v.listener.PlayerAllIn(c, c.players[bet.seat], bet.bet)
 					if err != nil {
 						return false, err
 					}
 				}
-			}
-			err := c.listener.PlayerAllIn(c, c.players[bet.num], bet.bet)
-			if err != nil {
-				return false, err
 			}
 		}
 	case val, ok := <-c.pauseCh:
@@ -111,19 +88,15 @@ func (c *game) waitBet(waitPlayerNum int8, duration time.Duration) (bool, error)
 		}
 	case <-tm.C:
 		for i, v := range c.players {
-			if i != waitPlayerNum {
-				err := v.listener.PlayerFold(c, c.players[waitPlayerNum])
+			if i != waitPlayerSeat {
+				err := v.listener.PlayerFold(c, c.players[waitPlayerSeat])
 				if err != nil {
 					return false, err
 				}
 			}
 		}
-		err := c.listener.PlayerFold(c, c.players[waitPlayerNum])
-		if err != nil {
-			return false, err
-		}
 	}
-	seat, _ := c.findNextBeter(waitPlayerNum)
+	seat, _ := c.findNextBeter(waitPlayerSeat)
 	if seat < 0 {
 		return false, nil
 	}
@@ -162,7 +135,7 @@ func (c *game) findNextBeter(seat int8) (int8, error) {
 		mp := make(map[int8]*HandValue)
 		var err error
 		for _, v := range leftPlayer {
-			mp[v.number], err = v.caculateMaxHandValue(c.publicCards)
+			mp[v.seat], err = v.caculateMaxHandValue(c.publicCards)
 			if err != nil {
 				return -1, err
 			}

@@ -11,7 +11,7 @@ const (
 )
 
 type Bet struct {
-	num    int8
+	seat   int8
 	bet    int64
 	action int8
 }
@@ -29,7 +29,7 @@ type Player interface {
 
 type player struct {
 	game          *game
-	number        int8
+	seat          int8
 	handCards     [2]*Card
 	maxHandValue  *HandValue
 	log           *zap.Logger
@@ -47,7 +47,7 @@ var _ Player = new(player)
 func NewPlayer(game *game, num int8, log *zap.Logger) *player {
 	return &player{
 		game:      game,
-		number:    num,
+		seat:      num,
 		handCards: [2]*Card{},
 		log:       log,
 	}
@@ -68,7 +68,7 @@ func (c *player) Bet(chip int64) {
 	c.currentBet += chip
 	c.game.pod += chip
 	c.game.betCh <- &Bet{
-		num:    c.number,
+		seat:   c.seat,
 		action: ActionBet,
 		bet:    chip,
 	}
@@ -79,7 +79,7 @@ func (c *player) Call() {
 	c.left -= more
 	c.game.pod += more
 	c.game.betCh <- &Bet{
-		num:    c.number,
+		seat:   c.seat,
 		action: ActionCall,
 		bet:    more,
 	}
@@ -88,7 +88,7 @@ func (c *player) Call() {
 func (c *player) AllIn() {
 	c.game.pod += c.left
 	c.game.betCh <- &Bet{
-		num:    c.number,
+		seat:   c.seat,
 		action: ActionAllIn,
 		bet:    c.left,
 	}
@@ -106,7 +106,7 @@ func (c *player) Raise(chip int64) {
 	c.game.currentBet += chip
 	c.game.pod += chip
 	c.game.betCh <- &Bet{
-		num:    c.number,
+		seat:   c.seat,
 		action: ActionRaise,
 		bet:    chip,
 	}

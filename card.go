@@ -88,9 +88,9 @@ func (c Card) NumString() string {
 
 //HandValue 手牌
 type HandValue struct {
-	cards        [5]*Card
-	value        int64
-	maxHandValue HandValueType
+	cards            [5]*Card
+	value            int64
+	maxHandValueType HandValueType
 }
 
 //NewHandValue 创建手牌（已计算最高牌型）
@@ -157,32 +157,32 @@ func (c *HandValue) SprintTaggingCards(nc []*Card) string {
 	return str
 }
 
-func (c *HandValue) Sprint() string {
-	return fmt.Sprintf("\n%s\t%s\t%s\t%s\t%s\n%s\t%s\t%s\t%s\t%s\n%s\n", c.cards[0].NumString(), c.cards[1].NumString(), c.cards[2].NumString(), c.cards[3].NumString(), c.cards[4].NumString(), c.cards[0].SuitString(), c.cards[1].SuitString(), c.cards[2].SuitString(), c.cards[3].SuitString(), c.cards[4].SuitString(), c.maxHandValue)
+func (c *HandValue) String() string {
+	return fmt.Sprintf("\n%s\t%s\t%s\t%s\t%s\n%s\t%s\t%s\t%s\t%s\n%s\n", c.cards[0].NumString(), c.cards[1].NumString(), c.cards[2].NumString(), c.cards[3].NumString(), c.cards[4].NumString(), c.cards[0].SuitString(), c.cards[1].SuitString(), c.cards[2].SuitString(), c.cards[3].SuitString(), c.cards[4].SuitString(), c.maxHandValueType)
 }
 
 func (c *HandValue) caculateValue() {
-	switch c.maxHandValue {
+	switch c.maxHandValueType {
 	case HVHighCard:
 		c.value = int64(c.cards[0].Num)<<16 + int64(c.cards[1].Num)<<12 + int64(c.cards[2].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
 	case HVOnePair:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)<<12 + int64(c.cards[2].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)<<12 + int64(c.cards[2].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
 	case HVTwoPair:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
 	case HVThreeOfAKind:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
 	case HVStraight:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)
 	case HVFlush:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)<<16 + int64(c.cards[1].Num)<<12 + int64(c.cards[2].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)<<16 + int64(c.cards[1].Num)<<12 + int64(c.cards[2].Num)<<8 + int64(c.cards[3].Num)<<4 + int64(c.cards[4].Num)
 	case HVFullHouse:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)<<4 + int64(c.cards[3].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)<<4 + int64(c.cards[3].Num)
 	case HVFourOfAKind:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)<<4 + int64(c.cards[4].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)<<4 + int64(c.cards[4].Num)
 	case HVStraightFlush:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)
 	case HVRoyalFlush:
-		c.value = int64(c.maxHandValue)<<20 + int64(c.cards[0].Num)
+		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)
 	default:
 		panic(InvalidHandValueType)
 	}
@@ -190,20 +190,20 @@ func (c *HandValue) caculateValue() {
 
 func (c *HandValue) evaluate() {
 	c.generalCheck()
-	if c.maxHandValue == HVFlush || c.maxHandValue == HVHighCard {
+	if c.maxHandValueType == HVFlush || c.maxHandValueType == HVHighCard {
 		isStraight := c.isStraight()
 		//Flush more logical
-		if c.maxHandValue == HVFlush && isStraight {
+		if c.maxHandValueType == HVFlush && isStraight {
 			if c.cards[0].Num == 14 {
-				c.maxHandValue = HVRoyalFlush
+				c.maxHandValueType = HVRoyalFlush
 			} else {
-				c.maxHandValue = HVStraightFlush
+				c.maxHandValueType = HVStraightFlush
 			}
 			c.caculateValue()
 			return
 		}
 		if isStraight {
-			c.maxHandValue = HVStraight
+			c.maxHandValueType = HVStraight
 			c.caculateValue()
 		}
 	}
@@ -248,13 +248,13 @@ func (c *HandValue) generalCheck() {
 		}
 	}
 	if isFlush {
-		c.maxHandValue = HVFlush
+		c.maxHandValueType = HVFlush
 		c.caculateValue()
 		return
 	}
 	l := len(ppairs)
 	if l == 0 {
-		c.maxHandValue = HVHighCard
+		c.maxHandValueType = HVHighCard
 		c.caculateValue()
 		return
 	}
@@ -277,7 +277,7 @@ func (c *HandValue) generalCheck() {
 		if c.cards[3].Num == oneSameValue && c.cards[4].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[3], c.cards[4], c.cards[0], c.cards[1], c.cards[2]
 		}
-		c.maxHandValue = HVOnePair
+		c.maxHandValueType = HVOnePair
 		c.caculateValue()
 		return
 	}
@@ -290,7 +290,7 @@ func (c *HandValue) generalCheck() {
 		if c.cards[2].Num != c.cards[3].Num {
 			c.cards[2], c.cards[3], c.cards[4] = c.cards[3], c.cards[4], c.cards[2]
 		}
-		c.maxHandValue = HVTwoPair
+		c.maxHandValueType = HVTwoPair
 		c.caculateValue()
 		return
 	}
@@ -303,7 +303,7 @@ func (c *HandValue) generalCheck() {
 		if c.cards[0].Num != oneSameValue && c.cards[1].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3] = c.cards[1], c.cards[2], c.cards[3], c.cards[0]
 		}
-		c.maxHandValue = HVThreeOfAKind
+		c.maxHandValueType = HVThreeOfAKind
 		return
 	}
 
@@ -312,7 +312,7 @@ func (c *HandValue) generalCheck() {
 		if c.cards[0].Num != oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[1], c.cards[2], c.cards[3], c.cards[4], c.cards[0]
 		}
-		c.maxHandValue = HVFourOfAKind
+		c.maxHandValueType = HVFourOfAKind
 		c.caculateValue()
 		return
 	}
@@ -322,7 +322,7 @@ func (c *HandValue) generalCheck() {
 		if c.cards[0].Num > c.cards[2].Num {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[2], c.cards[3], c.cards[4], c.cards[0], c.cards[1]
 		}
-		c.maxHandValue = HVFullHouse
+		c.maxHandValueType = HVFullHouse
 		c.caculateValue()
 		return
 	}

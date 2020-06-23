@@ -31,27 +31,46 @@ type Game interface {
 }
 
 type game struct {
-	poker       *Poker
-	burnCards   []*Card
+	//一副牌
+	poker *Poker
+	//被抛弃的牌
+	burnCards []*Card
+	//公共牌
 	publicCards []*Card
-	handCards   map[int8][2]*Card
-	seatCount   int8
-	players     map[int8]*player
-	seated      map[int8]int8
-	step        int8
-	log         *zap.Logger
-	numLock     sync.Mutex
-	listener    AudienceListener
-	gameHook    GameHook
-	button      int8
-	sb          int64
-	ante        int64
-	pod         int64
+	//根据座位号的手牌
+	handCards map[int8][2]*Card
+	//座位总数
+	seatCount int8
+	//座位号的用户
+	players map[int8]*player
+	//坐下的用户状态
+	seated map[int8]int8
+	//步骤
+	step int8
+	//日志
+	log *zap.Logger
+	//锁
+	numLock sync.Mutex
+	//观众监听
+	listener AudienceListener
+	//游戏挂载点
+	gameHook GameHook
+	//按钮位
+	button int8
+	//小盲
+	sb int64
+	//前注
+	ante int64
+	pod  int64
+	//玩家总数
 	playerCount int8
-	betCh       chan *Bet
-	currentBet  int64
-
-	pause   int64
+	//投注通道
+	betCh chan *Bet
+	//当前投注
+	currentBet int64
+	//暂停时间秒
+	pause int64
+	//暂停通道
 	pauseCh chan byte
 }
 
