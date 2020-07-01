@@ -115,6 +115,10 @@ func (c *HandValue) MaxHandValueType() HandValueType {
 	return c.maxHandValueType
 }
 
+func (c *HandValue) Value() int64 {
+	return c.value
+}
+
 func (c *HandValue) HasCards(nc ...*Card) bool {
 	ret := make(map[string]bool)
 	for _, v := range nc {
