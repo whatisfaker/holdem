@@ -21,34 +21,34 @@ const (
 
 func (c HandValueType) String() string {
 	if c == 1 {
-		return "高牌(high card)\t1"
+		return "高牌(high card)"
 	}
 	if c == 2 {
-		return "一对(one pair)\t2"
+		return "一对(one pair)"
 	}
 	if c == 3 {
-		return "两对(two pairs)\t3"
+		return "两对(two pairs)"
 	}
 	if c == 4 {
-		return "三条(three of a kind)\t4"
+		return "三条(three of a kind)"
 	}
 	if c == 5 {
-		return "顺子(straight)\t5"
+		return "顺子(straight)"
 	}
 	if c == 6 {
-		return "同花(flush)\t6"
+		return "同花(flush)"
 	}
 	if c == 7 {
-		return "葫芦(full house)\t7"
+		return "葫芦(full house)"
 	}
 	if c == 8 {
-		return "四条(four of a kind)\t8"
+		return "四条(four of a kind)"
 	}
 	if c == 9 {
-		return "同花顺(straight flush)\t9"
+		return "同花顺(straight flush)"
 	}
 	if c == 10 {
-		return "皇家同花顺(royal flush)\t10"
+		return "皇家同花顺(royal flush)"
 	}
 	return "Unknonw Hand Value Type"
 }
@@ -186,7 +186,7 @@ func (c *HandValue) DebugCards(nc []*Card) string {
 }
 
 func (c *HandValue) String() string {
-	return fmt.Sprintf("\n%s\t%s\t%s\t%s\t%s\n%s\t%s\t%s\t%s\t%s\n%s\n", c.cards[0].NumString(), c.cards[1].NumString(), c.cards[2].NumString(), c.cards[3].NumString(), c.cards[4].NumString(), c.cards[0].SuitString(), c.cards[1].SuitString(), c.cards[2].SuitString(), c.cards[3].SuitString(), c.cards[4].SuitString(), c.maxHandValueType)
+	return fmt.Sprintf("%s(%s) - %s(%s) - %s(%s) - %s(%s) - %s(%s) : %s", c.cards[0].NumString(), c.cards[0].SuitString(), c.cards[1].NumString(), c.cards[1].SuitString(), c.cards[2].NumString(), c.cards[2].SuitString(), c.cards[3].NumString(), c.cards[3].SuitString(), c.cards[4].NumString(), c.cards[4].SuitString(), c.maxHandValueType.String())
 }
 
 func (c *HandValue) caculateValue() {
