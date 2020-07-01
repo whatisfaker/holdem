@@ -115,6 +115,26 @@ func (c *HandValue) MaxHandValueType() HandValueType {
 	return c.maxHandValueType
 }
 
+func (c *HandValue) HasCards(nc ...*Card) bool {
+	ret := make(map[string]bool)
+	for _, v := range nc {
+		key := fmt.Sprintf("%d-%d", v.Suit, v.Num)
+		ret[key] = false
+	}
+	for _, v := range c.cards {
+		key := fmt.Sprintf("%d-%d", v.Suit, v.Num)
+		if _, ok := ret[key]; ok {
+			ret[key] = true
+		}
+	}
+	for _, v := range ret {
+		if !v {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
 	ret := make(map[*Card]bool)
 	for _, v := range nc {
