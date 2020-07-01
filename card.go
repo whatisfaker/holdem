@@ -139,7 +139,7 @@ func (c *HandValue) HasCards(nc ...*Card) bool {
 	return true
 }
 
-func (c *HandValue) taggingCards(nc []*Card) map[int]bool {
+func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
 	ret := make(map[*Card]bool)
 	for _, v := range nc {
 		ret[v] = false
@@ -155,7 +155,7 @@ func (c *HandValue) taggingCards(nc []*Card) map[int]bool {
 }
 
 func (c *HandValue) DebugCards(nc []*Card) string {
-	mp := c.taggingCards(nc)
+	mp := c.TaggingCards(nc)
 	var str string = "\n"
 	for i := range nc {
 		if i > 0 {
