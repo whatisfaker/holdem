@@ -48,7 +48,7 @@ func (c HandValueType) String() string {
 		return "同花顺(straight flush)\t9"
 	}
 	if c == 10 {
-		return "皇家同花顺百(royal flush)\t10"
+		return "皇家同花顺(royal flush)\t10"
 	}
 	return "Unknonw Hand Value Type"
 }
@@ -139,7 +139,7 @@ func (c *HandValue) HasCards(nc ...*Card) bool {
 	return true
 }
 
-func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
+func (c *HandValue) taggingCards(nc []*Card) map[int]bool {
 	ret := make(map[*Card]bool)
 	for _, v := range nc {
 		ret[v] = false
@@ -154,8 +154,8 @@ func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
 	return ret2
 }
 
-func (c *HandValue) SprintTaggingCards(nc []*Card) string {
-	mp := c.TaggingCards(nc)
+func (c *HandValue) DebugCards(nc []*Card) string {
+	mp := c.taggingCards(nc)
 	var str string = "\n"
 	for i := range nc {
 		if i > 0 {

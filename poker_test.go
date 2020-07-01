@@ -21,7 +21,7 @@ func TestNewPoker(t *testing.T) {
 				return
 			}
 			str := hand.String()
-			str += hand.SprintTaggingCards(allcs)
+			str += hand.DebugCards(allcs)
 			t.Log(str)
 			hands[int8(j)] = hand
 		}
