@@ -54,12 +54,29 @@ func (c *Poker) Reset() {
 	c.currentIndex = 0
 }
 
+//ResetAfterOffset 在某个位置以后的牌重置
+func (c *Poker) ResetAfterOffset(offset int) {
+	offset = offset % len(c.cards)
+	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rd.Shuffle(len(c.cards)-offset-1, func(i int, j int) {
+		c.cards[i+offset+1], c.cards[j+offset+1] = c.cards[j+offset+1], c.cards[i+offset+1]
+	})
+	c.currentIndex = offset + 1
+}
+
 func (c *Poker) GetCards(n int) ([]*Card, error) {
-	c.currentIndex += n
-	if c.currentIndex > maxCardNum-1 {
+	t := c.currentIndex
+	t += n
+	if t > maxCardNum-1 {
 		return nil, CardOutOfIndex
 	}
+	c.currentIndex = t
 	return c.cards[c.currentIndex-n : c.currentIndex], nil
+}
+
+//State 当前排序，最大牌数
+func (c *Poker) State() (int, int) {
+	return c.currentIndex, len(c.cards)
 }
 
 func GetMaxHandValueFromCard(nc []*Card) (*HandValue, error) {
