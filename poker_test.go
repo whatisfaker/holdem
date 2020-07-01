@@ -26,7 +26,7 @@ func TestNewPoker(t *testing.T) {
 			hands[int8(j)] = hand
 		}
 		t.Log("\n================================\n")
-		maxHands := GetMaxHandValue(hands)
+		maxHands := GetMaxHandValueFromTaggedHandValues(hands)
 		for _, hand := range maxHands {
 			t.Log(hand)
 		}

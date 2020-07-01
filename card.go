@@ -111,6 +111,10 @@ func (c *HandValue) Cards() [5]*Card {
 	return c.cards
 }
 
+func (c *HandValue) MaxHandValueType() HandValueType {
+	return c.maxHandValueType
+}
+
 func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
 	ret := make(map[*Card]bool)
 	for _, v := range nc {

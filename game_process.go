@@ -140,7 +140,7 @@ func (c *game) findNextBeter(seat int8) (int8, error) {
 				return -1, err
 			}
 		}
-		mp = GetMaxHandValue(mp)
+		mp = GetMaxHandValueFromTaggedHandValues(mp)
 		c.dealWinner(mp)
 		c.settlement()
 		return nextSeat, nil
