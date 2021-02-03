@@ -332,6 +332,7 @@ func (c *HandValue) generalCheck() {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3] = c.cards[1], c.cards[2], c.cards[3], c.cards[0]
 		}
 		c.maxHandValueType = HVThreeOfAKind
+		c.caculateValue()
 		return
 	}
 

@@ -34,3 +34,26 @@ func TestNewPoker(t *testing.T) {
 		a.Reset()
 	}
 }
+
+func TestCards(t *testing.T) {
+	c1, _ := NewCard(2, 2)
+	c2, _ := NewCard(14, 1)
+	c3, _ := NewCard(14, 0)
+	c4, _ := NewCard(4, 1)
+	c5, _ := NewCard(9, 3)
+
+	a1, _ := NewCard(13, 0)
+	a2, _ := NewCard(14, 2)
+	b1, _ := NewCard(2, 1)
+	b2, _ := NewCard(5, 0)
+
+	r1, _ := GetMaxHandValueFromCard([]*Card{c1, c2, c3, c4, c5, a1, a2})
+	r2, _ := GetMaxHandValueFromCard([]*Card{c1, c2, c3, c4, c5, b1, b2})
+	t.Log(r1.String())
+	t.Log(r2.String())
+
+	max := GetMaxHandValue(r1, r2)
+
+	t.Log(max[0].String())
+
+}
