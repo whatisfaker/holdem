@@ -1,6 +1,10 @@
 package holdem
 
-import "fmt"
+import (
+	"fmt"
+
+	"errors"
+)
 
 //HandValueType 手牌牌型类型
 //https://zh.wikipedia.org/wiki/%E5%BE%B7%E5%B7%9E%E6%92%B2%E5%85%8B#%E7%89%8C%E5%9E%8B%E5%A4%A7%E5%B0%8F%E8%A7%84%E5%88%99
@@ -54,10 +58,10 @@ func (c HandValueType) String() string {
 }
 
 var (
-	cardMap              = map[int8]string{2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "J", 12: "Q", 13: "K", 14: "A"}
-	suitMap              = [4]string{"♠", "♥", "♣", "♦"}
-	InvalidCard          = fmt.Errorf("invalid card num(2-14)/suit(0-3)")
-	InvalidHandValueType = fmt.Errorf("Invalid hand value type")
+	cardMap                 = map[int8]string{2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "J", 12: "Q", 13: "K", 14: "A"}
+	suitMap                 = [4]string{"♠", "♥", "♣", "♦"}
+	ErrInvalidCard          = errors.New("invalid card num(2-14)/suit(0-3)")
+	ErrInvalidHandValueType = errors.New("invalid hand value type")
 )
 
 type Card struct {
@@ -67,10 +71,10 @@ type Card struct {
 
 func NewCard(num int8, suit int8) (*Card, error) {
 	if num < 2 || num > 14 {
-		return nil, InvalidCard
+		return nil, ErrInvalidCard
 	}
 	if suit < 0 || suit > 3 {
-		return nil, InvalidCard
+		return nil, ErrInvalidHandValueType
 	}
 	return &Card{
 		Num:  num,
@@ -78,10 +82,12 @@ func NewCard(num int8, suit int8) (*Card, error) {
 	}, nil
 }
 
+//SuitString 花色
 func (c Card) SuitString() string {
 	return suitMap[c.Suit]
 }
 
+//NumString 大小
 func (c Card) NumString() string {
 	return cardMap[c.Num]
 }
@@ -107,18 +113,22 @@ func NewHandValue(nc []*Card) (*HandValue, error) {
 	return t, nil
 }
 
+//Cards 牌
 func (c *HandValue) Cards() [5]*Card {
 	return c.cards
 }
 
+//MaxHandValueType 最大手牌型
 func (c *HandValue) MaxHandValueType() HandValueType {
 	return c.maxHandValueType
 }
 
+//MaxHandValueType 计算用大小
 func (c *HandValue) Value() int64 {
 	return c.value
 }
 
+//HasCards 是否有某些牌
 func (c *HandValue) HasCards(nc ...*Card) bool {
 	ret := make(map[string]bool)
 	for _, v := range nc {
@@ -139,6 +149,7 @@ func (c *HandValue) HasCards(nc ...*Card) bool {
 	return true
 }
 
+//TaggingCards 标记牌
 func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
 	ret := make(map[*Card]bool)
 	for _, v := range nc {
@@ -154,6 +165,7 @@ func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
 	return ret2
 }
 
+//DebugCards 调试
 func (c *HandValue) DebugCards(nc []*Card) string {
 	mp := c.TaggingCards(nc)
 	var str string = "\n"
@@ -212,7 +224,7 @@ func (c *HandValue) caculateValue() {
 	case HVRoyalFlush:
 		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)
 	default:
-		panic(InvalidHandValueType)
+		panic(ErrInvalidHandValueType)
 	}
 }
 

@@ -1,17 +1,19 @@
 package holdem
 
 import (
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
+
+	"errors"
 )
 
 const maxCardNum = 52
 
 var pokerCards []*Card
 var smOnce sync.Once
-var CardOutOfIndex = fmt.Errorf("left cards count is less than expect")
+var ErrCardOutOfIndex = errors.New("left cards count is less than expect")
+var ErrInvalidCardLength = errors.New("unsupported card length")
 
 type Poker struct {
 	cards        []*Card
@@ -68,7 +70,7 @@ func (c *Poker) GetCards(n int) ([]*Card, error) {
 	t := c.currentIndex
 	t += n
 	if t > maxCardNum-1 {
-		return nil, CardOutOfIndex
+		return nil, ErrCardOutOfIndex
 	}
 	c.currentIndex = t
 	return c.cards[c.currentIndex-n : c.currentIndex], nil
@@ -124,7 +126,7 @@ func GetHandValueFromCard(nc []*Card) ([]*HandValue, error) {
 		}
 		return hands, nil
 	}
-	return nil, fmt.Errorf("Unsupported card length")
+	return nil, ErrInvalidCardLength
 }
 
 func GetMaxHandValueFromCard(nc []*Card) (*HandValue, error) {
