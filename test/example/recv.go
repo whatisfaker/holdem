@@ -81,8 +81,12 @@ func (c *rec) RoomerGameInformation(h *holdem.Holdem) {
 }
 
 //RoomerRoomerStandUp
-func (c *rec) RoomerStandUp(int8, holdem.UserInfo) {
+func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo) {
 	c.log.Debug("RoomerStandUp")
+	c.ch <- &ServerAction{
+		Action: SAStandUp,
+		Seat:   seat,
+	}
 }
 
 //RoomerGetCard 接收有人收到牌（位置,牌数量)

@@ -13,6 +13,7 @@ type ShowUser struct {
 	SeatNumber int8
 	RoundBet   int
 	Status     ActionDef
+	IsPlaying  bool
 }
 
 type Agent struct {
@@ -119,16 +120,20 @@ func (c *Agent) ShowUser() *ShowUser {
 	}
 	if c.showUser == nil {
 		c.showUser = &ShowUser{
-			User:       c.user,
-			SeatNumber: -1,
+			User: c.user,
 		}
 	}
 	if c.gameInfo == nil {
 		return nil
 	}
-	c.showUser.RoundBet = c.gameInfo.roundBet
 	c.showUser.SeatNumber = c.gameInfo.seatNumber
-	c.showUser.Status = c.gameInfo.status
+	if c.nextAgent != nil {
+		c.showUser.RoundBet = c.gameInfo.roundBet
+		c.showUser.Status = c.gameInfo.status
+		c.showUser.IsPlaying = true
+	} else {
+		c.showUser.IsPlaying = false
+	}
 	return c.showUser
 }
 

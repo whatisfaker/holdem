@@ -1,6 +1,7 @@
 package holdem
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -16,57 +17,55 @@ const (
 )
 
 type Holdem struct {
-	poker       *Poker
-	handNum     uint
-	seatCount   int8
-	playerCount int8
-	players     map[int8]*Agent
-	playerSeat  []int8
-	roomers     map[*Agent]bool
-	buttonSeat  int8
-	button      *Agent
-	seatLock    sync.Mutex
-	sb          int
-	ante        int
-	pot         int
-	roundBet    int
-	minRaise    int
-	publicCards []*Card
-	log         *zap.Logger
-	nextGame    func(uint) bool
+	poker              *Poker
+	handNum            uint
+	seatCount          int8
+	playerCount        int8
+	players            map[int8]*Agent
+	playingPlayerCount int8
+	roomers            map[*Agent]bool
+	buttonSeat         int8
+	button             *Agent
+	seatLock           sync.Mutex
+	startLock          sync.Mutex
+	started            bool
+	sb                 int
+	ante               int
+	pot                int
+	roundBet           int
+	minRaise           int
+	publicCards        []*Card
+	log                *zap.Logger
+	minAutoPlayers     int8
+	nextGame           func(uint) bool
 }
 
-func NewHoldem(sc int8, sb int, ante int, nextGame func(uint) bool, log *zap.Logger) *Holdem {
+func NewHoldem(sc int8, sb int, ante int, minAutoPlayers int8, nextGame func(uint) bool, log *zap.Logger) *Holdem {
 	if nextGame == nil {
 		nextGame = func(uint) bool {
 			return false
 		}
 	}
 	return &Holdem{
-		poker:       NewPoker(),
-		players:     make(map[int8]*Agent),
-		roomers:     make(map[*Agent]bool),
-		playerSeat:  make([]int8, 0),
-		publicCards: make([]*Card, 0, 5),
-		seatCount:   sc,
-		buttonSeat:  -1,
-		sb:          sb,
-		ante:        ante,
-		log:         log,
-		nextGame:    nextGame,
+		poker:          NewPoker(),
+		players:        make(map[int8]*Agent),
+		roomers:        make(map[*Agent]bool),
+		publicCards:    make([]*Card, 0, 5),
+		seatCount:      sc,
+		minAutoPlayers: minAutoPlayers,
+		sb:             sb,
+		ante:           ante,
+		log:            log,
+		nextGame:       nextGame,
 	}
 }
 
 func (c *Holdem) StandUp(i int8, r *Agent) {
-	if c.players[i] == nil {
-		//r.recv.ErrorOccur(errors.New("no player"))
-		return
-	}
 	c.seatLock.Lock()
-	r.gameInfo.seatNumber = -1
-	c.players[i] = nil
+	defer c.seatLock.Unlock()
+	r.gameInfo = nil
+	delete(c.players, i)
 	c.playerCount--
-	c.seatLock.Unlock()
 	//通知其他人
 	for rr := range c.roomers {
 		if rr != r {
@@ -133,12 +132,10 @@ func (c *Holdem) Information() (ante int, sb int, pot int, publicCards []*Card, 
 	return
 }
 
-func (c *Holdem) checkAndStart() bool {
-	if len(c.players) == int(c.seatCount) {
+func (c *Holdem) checkAndStart() {
+	if len(c.players) >= int(c.minAutoPlayers) {
 		go c.Start()
-		return true
 	}
-	return false
 }
 
 func (c *Holdem) buttonPosition() {
@@ -155,8 +152,12 @@ func (c *Holdem) buttonPosition() {
 		}
 	}
 	c.handNum++
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	c.playingPlayerCount = 0
 	for i = 1; i <= c.seatCount; i++ {
 		if p, ok := c.players[i]; ok {
+			c.playingPlayerCount++
 			if cur == nil {
 				cur = p
 				first = p
@@ -168,6 +169,8 @@ func (c *Holdem) buttonPosition() {
 			last = p
 		}
 	}
+	fmt.Println(c.playingPlayerCount)
+	c.log.Debug("playing count", zap.Int8("count", c.playingPlayerCount))
 	last.nextAgent = first
 	cur = first
 	for {
@@ -424,10 +427,10 @@ func (c *Holdem) checkRoundComplete() (bool, []*Agent, bool) {
 
 func (c *Holdem) deal(cnt int) {
 	first := c.button.nextAgent
-	cards := make([][]*Card, c.playerCount)
+	cards := make([][]*Card, c.playingPlayerCount)
 	max := cnt
 	for ; max > 0; max-- {
-		for i := 0; i < int(c.playerCount); i++ {
+		for i := 0; i < int(c.playingPlayerCount); i++ {
 			cds, _ := c.poker.GetCards(1)
 			if len(cards[i]) == 0 {
 				cards[i] = make([]*Card, 0)
@@ -463,8 +466,27 @@ func (c *Holdem) deal(cnt int) {
 
 func (c *Holdem) Start() {
 	for {
+		c.startLock.Lock()
+		if c.started {
+			c.startLock.Unlock()
+			break
+		}
+		c.started = true
+		c.startLock.Unlock()
 		c.startHand()
-		if !c.nextGame(c.handNum) {
+		c.seatLock.Lock()
+		for i, r := range c.players {
+			if r.gameInfo.chip == 0 {
+				c.StandUp(i, r)
+				continue
+			}
+		}
+		c.seatLock.Unlock()
+		//人数<1 或者小于最小开局人数 无法开局判断
+		if c.playerCount <= 1 || c.playerCount < c.minAutoPlayers || !c.nextGame(c.handNum) {
+			c.startLock.Lock()
+			c.started = false
+			defer c.startLock.Unlock()
 			break
 		}
 	}
@@ -474,7 +496,7 @@ func (c *Holdem) Start() {
 func (c *Holdem) startHand() {
 	c.pot = 0
 	if c.ante > 0 {
-		c.pot += int(c.playerCount) * c.ante
+		c.pot += int(c.playingPlayerCount) * c.ante
 	}
 	c.publicCards = c.publicCards[:0]
 	//洗牌
@@ -548,21 +570,26 @@ func (c *Holdem) complexWin(users []*Agent) {
 	results, _, _ := c.calcWin(users, pots)
 	c.pot = 0
 	ret := make([]*Result, 0)
+	u := c.button
 	//所有玩家的最终状况
-	for _, v := range c.players {
+	for {
 		r := &Result{
-			SeatNumber: v.gameInfo.seatNumber,
+			SeatNumber: u.gameInfo.seatNumber,
 		}
-		if v.gameInfo.cardResults != nil {
-			r.Cards = v.gameInfo.cardResults
-			r.HandValueType = v.gameInfo.handValue.MaxHandValueType()
+		if u.gameInfo.cardResults != nil {
+			r.Cards = u.gameInfo.cardResults
+			r.HandValueType = u.gameInfo.handValue.MaxHandValueType()
 		}
-		if rv, ok := results[v.gameInfo.seatNumber]; ok {
-			v.gameInfo.chip += rv.Num
+		if rv, ok := results[u.gameInfo.seatNumber]; ok {
+			u.gameInfo.chip += rv.Num
 			r.Num = rv.Num
 		}
-		r.Chip = v.gameInfo.chip
+		r.Chip = u.gameInfo.chip
 		ret = append(ret, r)
+		u = u.nextAgent
+		if u == c.button {
+			break
+		}
 	}
 	for r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
@@ -571,17 +598,22 @@ func (c *Holdem) complexWin(users []*Agent) {
 
 func (c *Holdem) simpleWin(agent *Agent) {
 	ret := make([]*Result, 0)
-	for _, v := range c.players {
+	u := c.button
+	for {
 		r := &Result{
-			SeatNumber: v.gameInfo.seatNumber,
+			SeatNumber: u.gameInfo.seatNumber,
 		}
-		if v.gameInfo.seatNumber == agent.gameInfo.seatNumber {
-			v.gameInfo.chip += c.pot
+		if u.gameInfo.seatNumber == agent.gameInfo.seatNumber {
+			u.gameInfo.chip += c.pot
 			r.Num = c.pot
 			c.pot = 0
 		}
-		r.Chip = v.gameInfo.chip
+		r.Chip = u.gameInfo.chip
 		ret = append(ret, r)
+		u = u.nextAgent
+		if u == c.button {
+			break
+		}
 	}
 	for r := range c.roomers {
 		r.recv.RoomerGetResult(ret)

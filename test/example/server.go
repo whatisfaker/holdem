@@ -55,7 +55,7 @@ func NewServer(from time.Time, to time.Time, count uint, log *zap.Logger) *Serve
 		}
 		return true
 	}
-	s.h = holdem.NewHoldem(9, 100, 0, nextGame, log.With(zap.String("te", "server")))
+	s.h = holdem.NewHoldem(9, 100, 0, 2, nextGame, log.With(zap.String("te", "server")))
 	return s
 }
 

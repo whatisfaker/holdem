@@ -22,6 +22,7 @@ type SA int8
 
 const (
 	SAGame SA = iota + 1
+	SAStandUp
 	SASeated
 	SAGetCards
 	SAGetMyCards
@@ -106,6 +107,8 @@ func (c *Robot) read() {
 				Action: RABringIn,
 				Num:    10000,
 			}
+		case SAStandUp:
+			c.log.Debug("SAStandUp", zap.Int8("seat", in.Seat))
 		case SASeated:
 			c.log.Debug("SASeated", zap.Int8("seat", in.Seat))
 			seat := in.Seat
@@ -135,6 +138,8 @@ func (c *Robot) read() {
 		case SAAction:
 			c.log.Debug("SAAction", zap.Int8("seat", in.Seat), zap.String("action", in.Action2.String()), zap.Int("num", in.Num))
 		case SAResult:
+			results := make([]*holdem.Result, 0)
+			_ = json.Unmarshal(in.Payload, &results)
 			c.log.Debug("SAResult", zap.String("result", string(in.Payload)))
 		}
 	}
@@ -201,7 +206,7 @@ func (c *Robot) MyAction(bet *BetInfo) *holdem.Bet {
 	case holdem.ActionDefRaise:
 		return &holdem.Bet{
 			Action: holdem.ActionDefRaise,
-			Num:    rand.Intn(bet.Chip-bet.MinRaise) + bet.MinRaise - bet.RoundBet,
+			Num:    rand.Intn(bet.Chip-bet.MinRaise-bet.RoundBet) + bet.MinRaise,
 		}
 	case holdem.ActionDefAllIn:
 		return &holdem.Bet{
