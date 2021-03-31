@@ -26,10 +26,11 @@ type Result struct {
 	Num           int
 	Cards         []*CardResult
 	HandValueType HandValueType
+	Chip          int
 }
 
 //showDown 亮牌并计算获胜牌型，返回获胜的玩家和剩余的
-func (c *holdem) showDown(agents []*Agent) ([]*Agent, []*Agent) {
+func (c *Holdem) showDown(agents []*Agent) ([]*Agent, []*Agent) {
 	th := make(map[int8]*HandValue)
 	for _, r := range agents {
 		r.gameInfo.CalcHandValue(c.publicCards)
@@ -50,7 +51,7 @@ func (c *holdem) showDown(agents []*Agent) ([]*Agent, []*Agent) {
 }
 
 //calcWin 根据彩池和牌型分配奖励
-func (c *holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent, []*Pot) {
+func (c *Holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent, []*Pot) {
 	winners, leftUsers := c.showDown(urs)
 	leftPots := make([]*Pot, 0)
 	results := make(map[int8]*Result)
@@ -105,7 +106,7 @@ func (c *holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent,
 }
 
 //calcPot 计算彩池
-func (c *holdem) calcPot(urs []*Agent) []*Pot {
+func (c *Holdem) calcPot(urs []*Agent) []*Pot {
 	mainPot := 0
 	u := c.button
 	as := make([]*Agent, 0)
