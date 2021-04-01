@@ -48,14 +48,15 @@ func NewServer(from time.Time, to time.Time, count uint, log *zap.Logger) *Serve
 		hands:    count,
 		complete: false,
 	}
-	nextGame := func(handCount uint) bool {
+	nextGame := func(handCount uint) (bool, time.Duration) {
 		if handCount >= count {
 			s.complete = true
-			return false
+			return false, 0
 		}
-		return true
+		return true, 10 * time.Second
 	}
-	s.h = holdem.NewHoldem(9, 100, 0, 2, nextGame, log.With(zap.String("te", "server")))
+	s.h = holdem.NewHoldem(9, 100, 0, true, 2, 20*time.Second, nextGame, log.With(zap.String("te", "server")))
+	go s.h.Wait()
 	return s
 }
 

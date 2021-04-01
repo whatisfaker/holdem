@@ -2,8 +2,6 @@ package holdem
 
 import (
 	"sort"
-
-	"go.uber.org/zap"
 )
 
 type CardResult struct {
@@ -41,7 +39,7 @@ func (c *Holdem) showDown(agents []*Agent) ([]*Agent, []*Agent) {
 	left := make([]*Agent, 0)
 	for _, r := range agents {
 		if _, ok := th[r.gameInfo.seatNumber]; ok {
-			c.log.Debug("winner", zap.Int8("seat", r.gameInfo.seatNumber), zap.Any("hv", r.gameInfo.handValue))
+			//c.log.Debug("winner", zap.Int8("seat", r.gameInfo.seatNumber), zap.Any("hv", r.gameInfo.handValue))
 			ret = append(ret, r)
 		} else {
 			left = append(left, r)

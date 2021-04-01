@@ -26,6 +26,8 @@ const (
 	SASeated
 	SAGetCards
 	SAGetMyCards
+	SASelfSeated
+	SASelfStandUp
 	SAGetPCards
 	SAShowCards
 	SACanBet
@@ -109,6 +111,8 @@ func (c *Robot) read() {
 			}
 		case SAStandUp:
 			c.log.Debug("SAStandUp", zap.Int8("seat", in.Seat))
+		case SASelfStandUp:
+			c.log.Debug("SASelfStandUp", zap.Int8("seat", in.Seat))
 		case SASeated:
 			c.log.Debug("SASeated", zap.Int8("seat", in.Seat))
 			seat := in.Seat
@@ -120,6 +124,8 @@ func (c *Robot) read() {
 				}
 			}
 			c.seats = c.seats[:j]
+		case SASelfSeated:
+			c.log.Debug("SASelfSeated", zap.Int8("seat", in.Seat))
 		case SACanBet:
 			bet := c.MyAction(in.BetInfo)
 			c.log.Debug("SACanBet", zap.String("action", bet.Action.String()), zap.Any("get", in.BetInfo), zap.Int8("seat", in.Seat), zap.Any("bet", bet))
@@ -206,7 +212,7 @@ func (c *Robot) MyAction(bet *BetInfo) *holdem.Bet {
 	case holdem.ActionDefRaise:
 		return &holdem.Bet{
 			Action: holdem.ActionDefRaise,
-			Num:    rand.Intn(bet.Chip-bet.MinRaise-bet.RoundBet) + bet.MinRaise,
+			Num:    rand.Intn(bet.Chip-(bet.CurrentBet-bet.RoundBet+bet.MinRaise)) + bet.CurrentBet - bet.RoundBet + bet.MinRaise,
 		}
 	case holdem.ActionDefAllIn:
 		return &holdem.Bet{

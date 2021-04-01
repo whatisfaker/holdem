@@ -1,6 +1,7 @@
 package holdem
 
 type UserInfo interface {
+	ID() string
 	Name() string
 	Avatar() string
 	Info() map[string]string

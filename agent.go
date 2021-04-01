@@ -86,9 +86,13 @@ type Reciever interface {
 	//PlayerGetCard 玩家获得自己发到的牌
 	PlayerGetCard(int8, []*Card, []int8, int8)
 	//PlayerCanBet 玩家可以开始下注(剩下筹码,本手已下注,本轮下注数量, 本轮的筹码数量, 最小下注额度)
-	PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round int8)
+	PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round Round)
 	//PlayerBringInSuccess 玩家带入成功
 	PlayerBringInSuccess(seat int8, chip int)
+	//PlayerSeated 玩家坐下
+	PlayerSeated(int8)
+	//PlayerStandUp 玩家站起
+	PlayerStandUp(int8)
 }
 
 func NewAgent(recv Reciever, user UserInfo, log *zap.Logger) *Agent {
@@ -166,12 +170,7 @@ func (c *Agent) enableAction(enable bool) {
 
 func (c *Agent) Bet(bet *Bet) {
 	if c.canAction() {
-		c.gameInfo.status = bet.Action
-		c.gameInfo.handBet += bet.Num
-		c.gameInfo.roundBet += bet.Num
-		c.gameInfo.chip -= bet.Num
 		c.betCh <- bet
-		c.enableAction(false)
 		return
 	}
 	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
@@ -189,7 +188,7 @@ func (p potSort) Less(i, j int) bool {
 // 交换数据
 func (p potSort) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
-func (c *Agent) waitBet(curBet int, minBet int, round int8, timeout time.Duration) *Bet {
+func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Duration) *Bet {
 	c.enableAction(true)
 	c.betCh = make(chan *Bet, 1)
 	timer := time.NewTimer(timeout)
@@ -197,25 +196,81 @@ func (c *Agent) waitBet(curBet int, minBet int, round int8, timeout time.Duratio
 		c.enableAction(false)
 		close(c.betCh)
 		timer.Stop()
-		c.log.Debug("wait complete", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int8("round", round))
+		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
 	}()
 	//稍微延迟告诉客户端可以下注
 	time.AfterFunc(200*time.Millisecond, func() {
-		c.log.Debug("wait", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int8("round", round))
+		c.log.Debug("wait bet", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
 		c.recv.PlayerCanBet(c.gameInfo.seatNumber, c.gameInfo.chip, c.gameInfo.handBet, c.gameInfo.roundBet, curBet, minBet, round)
 	})
-	select {
-	case bet, ok := <-c.betCh:
-		if !ok {
-			return nil
-		}
-		return bet
-	case <-timer.C:
-		c.gameInfo.status = ActionDefFold
-		return &Bet{
-			Action: ActionDefFold,
+	//循环如果投注错误,还可以让客户重新投注直到超时
+	for {
+		select {
+		case bet, ok := <-c.betCh:
+			if !ok {
+				return nil
+			}
+			if c.isValidBet(bet, curBet, minBet, round) {
+				c.gameInfo.status = bet.Action
+				c.gameInfo.handBet += bet.Num
+				c.gameInfo.roundBet += bet.Num
+				c.gameInfo.chip -= bet.Num
+				c.enableAction(false)
+				return bet
+			}
+		case <-timer.C:
+			c.gameInfo.status = ActionDefFold
+			return &Bet{
+				Action: ActionDefFold,
+			}
 		}
 	}
+}
+
+func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round) bool {
+	//第一个人/或者前面没有人下注
+	actions := make(map[ActionDef]int)
+	//c.log.Error("get bet", zap.Any("bet", bet))
+	if maxRoundBet == 0 {
+		if c.gameInfo.chip > minRaise {
+			actions[ActionDefFold] = 0
+			actions[ActionDefBet] = minRaise
+			actions[ActionDefCheck] = 0
+			actions[ActionDefAllIn] = c.gameInfo.chip
+		} else {
+			actions[ActionDefFold] = 0
+			actions[ActionDefCheck] = 0
+			actions[ActionDefAllIn] = c.gameInfo.chip
+		}
+	} else {
+		//筹码大于当前下注
+		if c.gameInfo.chip > maxRoundBet-c.gameInfo.roundBet+minRaise {
+			actions[ActionDefFold] = 0
+			actions[ActionDefCall] = maxRoundBet - c.gameInfo.roundBet
+			actions[ActionDefRaise] = maxRoundBet - c.gameInfo.roundBet + minRaise
+			actions[ActionDefAllIn] = c.gameInfo.chip
+		} else if c.gameInfo.chip > maxRoundBet-c.gameInfo.roundBet {
+			actions[ActionDefFold] = 0
+			actions[ActionDefCall] = maxRoundBet - c.gameInfo.roundBet
+			actions[ActionDefAllIn] = c.gameInfo.chip
+		} else {
+			actions[ActionDefFold] = 0
+			actions[ActionDefAllIn] = c.gameInfo.chip
+		}
+	}
+	amount, ok := actions[bet.Action]
+	if !ok {
+		c.recv.ErrorOccur(ErrCodeInvalidBetAction, errInvalidBetAction)
+		return false
+	}
+	if (bet.Action == ActionDefRaise && bet.Num < amount) ||
+		(bet.Action == ActionDefBet && bet.Num < amount) ||
+		(bet.Action != ActionDefRaise && bet.Action != ActionDefBet && bet.Num != amount) {
+		fmt.Println(bet.Action.String(), bet.Num, amount, maxRoundBet, c.gameInfo.roundBet, minRaise)
+		c.recv.ErrorOccur(ErrCodeInvalidBetNum, errInvalidBetNum)
+		return false
+	}
+	return true
 }
 
 type ShowCard struct {

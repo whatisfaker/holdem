@@ -52,8 +52,6 @@ func (c *rec) ID() string {
 
 //RoomerSeated 接收有人坐下
 func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo) {
-	c.log.Debug("RoomerSeated", zap.String("id", c.id), zap.Int8("seat", seat), zap.String("who", u.Name()))
-
 	c.ch <- &ServerAction{
 		Action: SASeated,
 		Seat:   seat,
@@ -61,7 +59,6 @@ func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo) {
 }
 
 func (c *rec) RoomerGameInformation(h *holdem.Holdem) {
-	c.log.Debug("RoomerGameInformation")
 	_, _, _, _, seatCount, players, _ := h.Information()
 	seats := make([]int, 0)
 	mp := make(map[int8]bool)
@@ -82,7 +79,6 @@ func (c *rec) RoomerGameInformation(h *holdem.Holdem) {
 
 //RoomerRoomerStandUp
 func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo) {
-	c.log.Debug("RoomerStandUp")
 	c.ch <- &ServerAction{
 		Action: SAStandUp,
 		Seat:   seat,
@@ -91,7 +87,6 @@ func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo) {
 
 //RoomerGetCard 接收有人收到牌（位置,牌数量)
 func (c *rec) RoomerGetCard(a []int8, num int8) {
-	c.log.Debug("RoomerGetCard", zap.String("id", c.id), zap.Int8s("seats", a), zap.Int8("count", num))
 	mp := make(map[string]interface{})
 	mp["order"] = a
 	mp["num"] = num
@@ -104,7 +99,6 @@ func (c *rec) RoomerGetCard(a []int8, num int8) {
 
 //RoomerGetPublicCard 接收公共牌
 func (c *rec) RoomerGetPublicCard(cds []*holdem.Card) {
-	c.log.Debug("RoomerGetPublicCard")
 	b, _ := json.Marshal(cds)
 	c.ch <- &ServerAction{
 		Action:  SAGetPCards,
@@ -114,7 +108,6 @@ func (c *rec) RoomerGetPublicCard(cds []*holdem.Card) {
 
 //RoomerGetShowCards 接收亮牌信息
 func (c *rec) RoomerGetShowCards(cds []*holdem.ShowCard) {
-	c.log.Debug("RoomerGetShowCards", zap.String("id", c.id))
 	b, _ := json.Marshal(cds)
 	c.ch <- &ServerAction{
 		Action:  SAShowCards,
@@ -124,7 +117,6 @@ func (c *rec) RoomerGetShowCards(cds []*holdem.ShowCard) {
 
 //RoomerGetAction 接收有人动作（位置，动作，金额(如果下注))
 func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, num int) {
-	c.log.Debug("RoomerGetAction", zap.String("id", c.id), zap.Int8("button", button), zap.Int8("seat", seat), zap.String("action", action.String()), zap.Int("num", num))
 	c.ch <- &ServerAction{
 		Action:  SAAction,
 		Action2: action,
@@ -135,7 +127,6 @@ func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, n
 
 //RoomerGetResult 接收牌局结果
 func (c *rec) RoomerGetResult(rs []*holdem.Result) {
-	c.log.Debug("RoomerGetResult", zap.String("id", c.id), zap.Any("result", rs))
 	b, _ := json.Marshal(rs)
 	c.ch <- &ServerAction{
 		Action:  SAResult,
@@ -145,7 +136,6 @@ func (c *rec) RoomerGetResult(rs []*holdem.Result) {
 
 //PlayerGetCard 玩家获得自己发到的牌
 func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int8) {
-	c.log.Debug("PlayerGetCard", zap.String("id", c.id), zap.Any("cards", cds), zap.Int8("seat", seat), zap.Int8s("orders", seats), zap.Int8("count", cnt))
 	mp := make(map[string]interface{})
 	mp["cards"] = cds
 	mp["order"] = seats
@@ -167,8 +157,7 @@ func (c *rec) ErrorOccur(code int, err error) {
 }
 
 //PlayerCanBet 玩家可以开始下注
-func (c *rec) PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round int8) {
-	c.log.Debug("PlayerCanBet", zap.String("id", c.id))
+func (c *rec) PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round holdem.Round) {
 	c.ch <- &ServerAction{
 		Action: SACanBet,
 		Seat:   seat,
@@ -183,7 +172,6 @@ func (c *rec) PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBe
 }
 
 func (c *rec) PlayerBringInSuccess(seat int8, chip int) {
-	c.log.Debug("PlayerBringInSuccess", zap.String("id", c.id))
 	c.ch <- &ServerAction{
 		Action: SABringInSuccess,
 		Seat:   seat,
@@ -191,7 +179,22 @@ func (c *rec) PlayerBringInSuccess(seat int8, chip int) {
 	}
 }
 
+func (c *rec) PlayerSeated(seat int8) {
+	c.ch <- &ServerAction{
+		Action: SASelfSeated,
+		Seat:   seat,
+	}
+}
+
+func (c *rec) PlayerStandUp(seat int8) {
+	c.ch <- &ServerAction{
+		Action: SASelfStandUp,
+		Seat:   seat,
+	}
+}
+
 type player struct {
+	id     string
 	name   string
 	avatar string
 }
@@ -204,6 +207,10 @@ func (c *player) Name() string {
 
 func (c *player) Avatar() string {
 	return c.avatar
+}
+
+func (c *player) ID() string {
+	return c.id
 }
 
 func (c *player) Info() map[string]string {

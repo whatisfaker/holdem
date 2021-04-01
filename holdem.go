@@ -1,7 +1,6 @@
 package holdem
 
 import (
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -9,41 +8,68 @@ import (
 	"go.uber.org/zap"
 )
 
+type Round int8
+
 const (
-	RoundPreFlop int8 = iota + 1
+	RoundPreFlop Round = iota + 1
 	RoundFlop
 	RoundTurn
 	RoundRiver
 )
 
-type Holdem struct {
-	poker              *Poker
-	handNum            uint
-	seatCount          int8
-	playerCount        int8
-	players            map[int8]*Agent
-	playingPlayerCount int8
-	roomers            map[*Agent]bool
-	buttonSeat         int8
-	button             *Agent
-	seatLock           sync.Mutex
-	startLock          sync.Mutex
-	started            bool
-	sb                 int
-	ante               int
-	pot                int
-	roundBet           int
-	minRaise           int
-	publicCards        []*Card
-	log                *zap.Logger
-	minAutoPlayers     int8
-	nextGame           func(uint) bool
+func (c Round) String() string {
+	switch c {
+	case RoundPreFlop:
+		return "preflop"
+	case RoundFlop:
+		return "flop"
+	case RoundTurn:
+		return "turn"
+	case RoundRiver:
+		return "river"
+	}
+	return "unknonw"
 }
 
-func NewHoldem(sc int8, sb int, ante int, minAutoPlayers int8, nextGame func(uint) bool, log *zap.Logger) *Holdem {
+type Holdem struct {
+	poker              *Poker                           //扑克
+	handNum            uint                             //手数
+	seatCount          int8                             //座位数量
+	playerCount        int8                             //座位上用户数量
+	players            map[int8]*Agent                  //座位上用户字典
+	playingPlayerCount int8                             //当前游戏玩家数量（座位上游戏的）
+	roomers            map[*Agent]bool                  //参与游戏的玩家（包括旁观）
+	buttonSeat         int8                             //庄家座位号
+	button             *Agent                           //庄家玩家
+	waitBetTimeout     time.Duration                    //等待下注的超时时间
+	seatLock           sync.Mutex                       //玩家锁
+	startCh            chan bool                        //开始通道
+	isStarted          bool                             //是否开始
+	sb                 int                              //小盲
+	ante               int                              //前注
+	pot                int                              //彩池
+	roundBet           int                              //当前轮下注额
+	minRaise           int                              //最小加注量
+	publicCards        []*Card                          //公共牌
+	log                *zap.Logger                      //日志
+	autoStart          bool                             //是否自动开始
+	minPlayers         int8                             //最小自动开始玩家
+	nextGame           func(uint) (bool, time.Duration) //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
+}
+
+func NewHoldem(
+	sc int8, //最大座位数
+	sb int, //小盲
+	ante int, //前注
+	autoStart bool, //是否自动开始
+	minPlayers int8, //最小游戏人数
+	waitBetTimeout time.Duration, //等待下注超时时间
+	nextGame func(uint) (bool, time.Duration), //是否继续下一手判断
+	log *zap.Logger, //日志
+) *Holdem {
 	if nextGame == nil {
-		nextGame = func(uint) bool {
-			return false
+		nextGame = func(uint) (bool, time.Duration) {
+			return false, 0
 		}
 	}
 	return &Holdem{
@@ -51,8 +77,11 @@ func NewHoldem(sc int8, sb int, ante int, minAutoPlayers int8, nextGame func(uin
 		players:        make(map[int8]*Agent),
 		roomers:        make(map[*Agent]bool),
 		publicCards:    make([]*Card, 0, 5),
+		waitBetTimeout: waitBetTimeout,
+		startCh:        make(chan bool),
 		seatCount:      sc,
-		minAutoPlayers: minAutoPlayers,
+		autoStart:      autoStart,
+		minPlayers:     minPlayers,
 		sb:             sb,
 		ante:           ante,
 		log:            log,
@@ -60,20 +89,7 @@ func NewHoldem(sc int8, sb int, ante int, minAutoPlayers int8, nextGame func(uin
 	}
 }
 
-func (c *Holdem) StandUp(i int8, r *Agent) {
-	c.seatLock.Lock()
-	defer c.seatLock.Unlock()
-	r.gameInfo = nil
-	delete(c.players, i)
-	c.playerCount--
-	//通知其他人
-	for rr := range c.roomers {
-		if rr != r {
-			rr.recv.RoomerStandUp(i, r.user)
-		}
-	}
-}
-
+//Join 加入游戏,并没有坐下
 func (c *Holdem) Join(rs ...*Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
@@ -81,17 +97,6 @@ func (c *Holdem) Join(rs ...*Agent) {
 		c.roomers[r] = true
 		r.recv.RoomerGameInformation(c)
 	}
-}
-
-func (c *Holdem) Seats() []int8 {
-	var i int8
-	ret := make([]int8, 0)
-	for ; i < c.seatCount; i++ {
-		if _, ok := c.players[i]; !ok {
-			ret = append(ret, i)
-		}
-	}
-	return ret
 }
 
 //Seated 坐下
@@ -110,12 +115,31 @@ func (c *Holdem) Seated(i int8, r *Agent) {
 	c.players[i] = r
 	c.playerCount++
 	//通知其他人
+	r.recv.PlayerSeated(i)
 	for rr := range c.roomers {
 		if rr != r {
 			rr.recv.RoomerSeated(i, r.user)
 		}
 	}
-	c.checkAndStart()
+	if !c.isStarted && c.autoStart && c.playerCount >= c.minPlayers {
+		c.isStarted = true
+	}
+}
+
+//StandUp 站起来
+func (c *Holdem) StandUp(i int8, r *Agent) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	r.gameInfo = nil
+	delete(c.players, i)
+	c.playerCount--
+	//通知其他人
+	r.recv.PlayerStandUp(i)
+	for rr := range c.roomers {
+		if rr != r {
+			rr.recv.RoomerStandUp(i, r.user)
+		}
+	}
 }
 
 func (c *Holdem) Information() (ante int, sb int, pot int, publicCards []*Card, seatCount int8, players []*ShowUser, onlines int) {
@@ -132,16 +156,10 @@ func (c *Holdem) Information() (ante int, sb int, pot int, publicCards []*Card, 
 	return
 }
 
-func (c *Holdem) checkAndStart() {
-	if len(c.players) >= int(c.minAutoPlayers) {
-		go c.Start()
-	}
-}
-
-func (c *Holdem) buttonPosition() {
+func (c *Holdem) buttonPosition() bool {
+	c.log.Debug("button position begin", zap.Int8("seat count", c.playerCount))
 	var first, cur, last *Agent
-	var i int8
-	var buIdx int8 = -1
+	var i, buIdx int8
 	if c.handNum == 0 {
 		rd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		buIdx = int8(rd.Intn(int(c.seatCount))) + 1
@@ -169,8 +187,10 @@ func (c *Holdem) buttonPosition() {
 			last = p
 		}
 	}
-	fmt.Println(c.playingPlayerCount)
-	c.log.Debug("playing count", zap.Int8("count", c.playingPlayerCount))
+	if c.playingPlayerCount <= 1 {
+		c.log.Debug("button position end(false)", zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
+		return false
+	}
 	last.nextAgent = first
 	cur = first
 	for {
@@ -186,6 +206,8 @@ func (c *Holdem) buttonPosition() {
 		}
 		cur = cur.nextAgent
 	}
+	c.log.Debug("button position end(true)", zap.Int8("buseat", c.buttonSeat), zap.String("buuser", c.button.user.ID()), zap.Int8("players", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
+	return true
 }
 
 func (c *Holdem) smallBlind() {
@@ -240,19 +262,18 @@ func (c *Holdem) bigBlind() {
 	c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.roundBet))
 }
 
-const waitBetTimeout = 20 * time.Second
-
 func (c *Holdem) preflop() ([]*Agent, bool) {
 	c.roundBet = c.sb * 2
 	c.minRaise = c.sb * 2
 	u := c.button.nextAgent.nextAgent.nextAgent
 	var roundComplete, showcard bool
 	var unfoldUsers []*Agent
+	c.log.Debug(RoundPreFlop.String()+" bet begin", zap.Int8("pc", c.playingPlayerCount), zap.Int8("sseat", u.gameInfo.seatNumber), zap.String("suser", u.user.ID()))
 	for {
 		if u.gameInfo.status == ActionDefFold || u.gameInfo.status == ActionDefAllIn {
 			u = u.nextAgent
 		}
-		bet := u.waitBet(c.roundBet, c.minRaise, RoundPreFlop, waitBetTimeout)
+		bet := u.waitBet(c.roundBet, c.minRaise, RoundPreFlop, c.waitBetTimeout)
 		switch bet.Action {
 		case ActionDefFold:
 		case ActionDefCall:
@@ -300,10 +321,11 @@ func (c *Holdem) preflop() ([]*Agent, bool) {
 			r.recv.RoomerGetShowCards(scs)
 		}
 	}
+	c.log.Debug(RoundPreFlop.String()+" bet end", zap.Int("left", len(unfoldUsers)))
 	return unfoldUsers, showcard
 }
 
-func (c *Holdem) flopTurnRiver(round int8) ([]*Agent, bool) {
+func (c *Holdem) flopTurnRiver(round Round) ([]*Agent, bool) {
 	c.roundBet = 0
 	c.minRaise = c.sb * 2
 	var roundComplete, showcard bool
@@ -318,13 +340,14 @@ func (c *Holdem) flopTurnRiver(round int8) ([]*Agent, bool) {
 		}
 	}
 	u := c.button.nextAgent
+	c.log.Debug(round.String()+" bet begin", zap.Int8("pc", c.playingPlayerCount), zap.Int8("sseat", u.gameInfo.seatNumber), zap.String("suser", u.user.ID()))
 	for {
 		//跳过all in和盖牌的玩家
 		if u.gameInfo.status == ActionDefFold || u.gameInfo.status == ActionDefAllIn {
 			u = u.nextAgent
 			continue
 		}
-		bet := u.waitBet(c.roundBet, c.minRaise, round, waitBetTimeout)
+		bet := u.waitBet(c.roundBet, c.minRaise, round, c.waitBetTimeout)
 		switch bet.Action {
 		case ActionDefFold:
 		case ActionDefCheck:
@@ -377,6 +400,7 @@ func (c *Holdem) flopTurnRiver(round int8) ([]*Agent, bool) {
 			r.recv.RoomerGetShowCards(scs)
 		}
 	}
+	c.log.Debug(round.String()+" bet begin", zap.Int("left", len(unfoldUsers)))
 	return unfoldUsers, showcard
 }
 
@@ -405,6 +429,9 @@ func (c *Holdem) checkRoundComplete() (bool, []*Agent, bool) {
 			continue
 		}
 		//本轮下注不等于本轮的注,直接返回未结束
+		if u.gameInfo.status == ActionDefSB {
+			c.log.Info("sb", zap.Int("roundBet", c.roundBet), zap.Int("sb roundBet", u.gameInfo.roundBet))
+		}
 		if c.roundBet > 0 && u.gameInfo.roundBet != c.roundBet {
 			return false, nil, false
 		}
@@ -426,6 +453,7 @@ func (c *Holdem) checkRoundComplete() (bool, []*Agent, bool) {
 }
 
 func (c *Holdem) deal(cnt int) {
+	c.log.Debug("deal begin", zap.Int("cards_count", cnt))
 	first := c.button.nextAgent
 	cards := make([][]*Card, c.playingPlayerCount)
 	max := cnt
@@ -440,7 +468,6 @@ func (c *Holdem) deal(cnt int) {
 	}
 	cur := first
 	seats := make([]int8, 0)
-	i := 0
 	for {
 		seats = append(seats, cur.gameInfo.seatNumber)
 		cur = cur.nextAgent
@@ -448,6 +475,7 @@ func (c *Holdem) deal(cnt int) {
 			break
 		}
 	}
+	i := 0
 	for {
 		cur.gameInfo.cards = cards[i]
 		cur.recv.PlayerGetCard(cur.gameInfo.seatNumber, cards[i], seats, int8(cnt))
@@ -462,34 +490,75 @@ func (c *Holdem) deal(cnt int) {
 			r.recv.RoomerGetCard(seats, int8(cnt))
 		}
 	}
+	c.log.Debug("deal end")
 }
 
-func (c *Holdem) Start() {
+func (c *Holdem) dealPublicCards(n int) {
+	c.log.Debug("deal public cards", zap.Int("cards_count", n))
+	//洗牌
+	_, _ = c.poker.GetCards(1)
+	cards, _ := c.poker.GetCards(n)
+	c.publicCards = append(c.publicCards, cards...)
+	for r := range c.roomers {
+		r.recv.RoomerGetPublicCard(cards)
+	}
+}
+
+func (c *Holdem) complexWin(users []*Agent) {
+	pots := c.calcPot(users)
+	results, _, _ := c.calcWin(users, pots)
+	c.pot = 0
+	ret := make([]*Result, 0)
+	u := c.button
+	//所有玩家的最终状况
 	for {
-		c.startLock.Lock()
-		if c.started {
-			c.startLock.Unlock()
-			break
+		r := &Result{
+			SeatNumber: u.gameInfo.seatNumber,
 		}
-		c.started = true
-		c.startLock.Unlock()
-		c.startHand()
-		c.seatLock.Lock()
-		for i, r := range c.players {
-			if r.gameInfo.chip == 0 {
-				c.StandUp(i, r)
-				continue
-			}
+		if u.gameInfo.cardResults != nil {
+			r.Cards = u.gameInfo.cardResults
+			r.HandValueType = u.gameInfo.handValue.MaxHandValueType()
 		}
-		c.seatLock.Unlock()
-		//人数<1 或者小于最小开局人数 无法开局判断
-		if c.playerCount <= 1 || c.playerCount < c.minAutoPlayers || !c.nextGame(c.handNum) {
-			c.startLock.Lock()
-			c.started = false
-			defer c.startLock.Unlock()
+		if rv, ok := results[u.gameInfo.seatNumber]; ok {
+			u.gameInfo.chip += rv.Num
+			r.Num = rv.Num
+		}
+		r.Chip = u.gameInfo.chip
+		ret = append(ret, r)
+		u = u.nextAgent
+		if u == c.button {
 			break
 		}
 	}
+	for r := range c.roomers {
+		r.recv.RoomerGetResult(ret)
+	}
+	c.log.Debug("cwin", zap.Any("result", ret))
+}
+
+func (c *Holdem) simpleWin(agent *Agent) {
+	ret := make([]*Result, 0)
+	u := c.button
+	for {
+		r := &Result{
+			SeatNumber: u.gameInfo.seatNumber,
+		}
+		if u.gameInfo.seatNumber == agent.gameInfo.seatNumber {
+			u.gameInfo.chip += c.pot
+			r.Num = c.pot
+			c.pot = 0
+		}
+		r.Chip = u.gameInfo.chip
+		ret = append(ret, r)
+		u = u.nextAgent
+		if u == c.button {
+			break
+		}
+	}
+	for r := range c.roomers {
+		r.recv.RoomerGetResult(ret)
+	}
+	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.user.ID()), zap.Any("result", ret))
 }
 
 //StartHand 开始新的一手
@@ -501,8 +570,6 @@ func (c *Holdem) startHand() {
 	c.publicCards = c.publicCards[:0]
 	//洗牌
 	c.poker.Reset()
-	//确定庄家位,处理所有在座玩家
-	c.buttonPosition()
 	//下盲注
 	c.smallBlind()
 	c.bigBlind()
@@ -555,67 +622,36 @@ func (c *Holdem) startHand() {
 	c.complexWin(users)
 }
 
-func (c *Holdem) dealPublicCards(n int) {
-	//洗牌
-	_, _ = c.poker.GetCards(1)
-	cards, _ := c.poker.GetCards(n)
-	c.publicCards = append(c.publicCards, cards...)
-	for r := range c.roomers {
-		r.recv.RoomerGetPublicCard(cards)
-	}
-}
+// func (c *Holdem) displayUsers(agents []*Agent) {
+// 	seats := make([]int8, 0)
+// 	for _, r := range agents {
+// 		seats = append(seats, r.gameInfo.seatNumber)
+// 	}
+// 	c.log.Info("users", zap.Int8s("seats", seats), zap.Int8("pc", c.playingPlayerCount))
+// }
 
-func (c *Holdem) complexWin(users []*Agent) {
-	pots := c.calcPot(users)
-	results, _, _ := c.calcWin(users, pots)
-	c.pot = 0
-	ret := make([]*Result, 0)
-	u := c.button
-	//所有玩家的最终状况
+func (c *Holdem) Wait() {
 	for {
-		r := &Result{
-			SeatNumber: u.gameInfo.seatNumber,
+		if !c.isStarted {
+			continue
 		}
-		if u.gameInfo.cardResults != nil {
-			r.Cards = u.gameInfo.cardResults
-			r.HandValueType = u.gameInfo.handValue.MaxHandValueType()
+		ok := c.buttonPosition()
+		if ok {
+			c.startHand()
+			//清理座位用户
+			c.seatLock.Lock()
+			for i, r := range c.players {
+				if r.gameInfo.chip == 0 {
+					c.StandUp(i, r)
+				}
+			}
+			c.seatLock.Unlock()
 		}
-		if rv, ok := results[u.gameInfo.seatNumber]; ok {
-			u.gameInfo.chip += rv.Num
-			r.Num = rv.Num
-		}
-		r.Chip = u.gameInfo.chip
-		ret = append(ret, r)
-		u = u.nextAgent
-		if u == c.button {
+		next, wait := c.nextGame(c.handNum)
+		if !next {
+			c.isStarted = false
 			break
 		}
-	}
-	for r := range c.roomers {
-		r.recv.RoomerGetResult(ret)
-	}
-}
-
-func (c *Holdem) simpleWin(agent *Agent) {
-	ret := make([]*Result, 0)
-	u := c.button
-	for {
-		r := &Result{
-			SeatNumber: u.gameInfo.seatNumber,
-		}
-		if u.gameInfo.seatNumber == agent.gameInfo.seatNumber {
-			u.gameInfo.chip += c.pot
-			r.Num = c.pot
-			c.pot = 0
-		}
-		r.Chip = u.gameInfo.chip
-		ret = append(ret, r)
-		u = u.nextAgent
-		if u == c.button {
-			break
-		}
-	}
-	for r := range c.roomers {
-		r.recv.RoomerGetResult(ret)
+		time.Sleep(wait)
 	}
 }
