@@ -43,7 +43,6 @@ type Holdem struct {
 	button             *Agent                           //庄家玩家
 	waitBetTimeout     time.Duration                    //等待下注的超时时间
 	seatLock           sync.Mutex                       //玩家锁
-	startCh            chan bool                        //开始通道
 	isStarted          bool                             //是否开始
 	sb                 int                              //小盲
 	ante               int                              //前注
@@ -64,7 +63,7 @@ func NewHoldem(
 	autoStart bool, //是否自动开始
 	minPlayers int8, //最小游戏人数
 	waitBetTimeout time.Duration, //等待下注超时时间
-	nextGame func(uint) (bool, time.Duration), //是否继续下一手判断
+	nextGame func(uint) (bool, time.Duration), //是否继续下一手判断/等待时间
 	log *zap.Logger, //日志
 ) *Holdem {
 	if nextGame == nil {
@@ -78,7 +77,6 @@ func NewHoldem(
 		roomers:        make(map[*Agent]bool),
 		publicCards:    make([]*Card, 0, 5),
 		waitBetTimeout: waitBetTimeout,
-		startCh:        make(chan bool),
 		seatCount:      sc,
 		autoStart:      autoStart,
 		minPlayers:     minPlayers,
