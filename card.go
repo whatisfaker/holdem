@@ -102,7 +102,7 @@ type HandValue struct {
 //NewHandValue 创建手牌（已计算最高牌型）
 func NewHandValue(nc []*Card) (*HandValue, error) {
 	if len(nc) != 5 {
-		return nil, fmt.Errorf("cards length is not 5")
+		return nil, errors.New("cards length is not 5")
 	}
 	var a [5]*Card
 	copy(a[:], nc)
@@ -194,6 +194,7 @@ func (c *HandValue) DebugCards(nc []*Card) string {
 		}
 	}
 	str += "\n"
+	str += fmt.Sprintf("%d\n", c.value)
 	return str
 }
 
@@ -264,7 +265,6 @@ func (c *HandValue) isStraight() bool {
 }
 
 func (c *HandValue) generalCheck() {
-	//ppairs := make([][]*Card, 0)
 	ppairs := make(map[*Card]int8)
 	sameValues := make(map[int8]bool)
 	isFlush := true
@@ -308,46 +308,37 @@ func (c *HandValue) generalCheck() {
 	if l == 2 {
 		if c.cards[1].Num == oneSameValue && c.cards[2].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2] = c.cards[1], c.cards[2], c.cards[0]
-		}
-
-		if c.cards[2].Num == oneSameValue && c.cards[3].Num == oneSameValue {
+		} else if c.cards[2].Num == oneSameValue && c.cards[3].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3] = c.cards[2], c.cards[3], c.cards[0], c.cards[1]
-		}
-
-		if c.cards[3].Num == oneSameValue && c.cards[4].Num == oneSameValue {
+		} else if c.cards[3].Num == oneSameValue && c.cards[4].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[3], c.cards[4], c.cards[0], c.cards[1], c.cards[2]
 		}
 		c.maxHandValueType = HVOnePair
 		c.caculateValue()
 		return
 	}
-
 	//Two Pair
 	if l == 4 && sl == 2 {
 		if c.cards[0].Num != c.cards[1].Num {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[1], c.cards[2], c.cards[3], c.cards[4], c.cards[0]
-		}
-		if c.cards[2].Num != c.cards[3].Num {
+		} else if c.cards[2].Num != c.cards[3].Num {
 			c.cards[2], c.cards[3], c.cards[4] = c.cards[3], c.cards[4], c.cards[2]
 		}
 		c.maxHandValueType = HVTwoPair
 		c.caculateValue()
 		return
 	}
-
 	//Three of A kind
 	if l == 3 {
 		if c.cards[0].Num != oneSameValue && c.cards[1].Num != oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[2], c.cards[3], c.cards[4], c.cards[0], c.cards[1]
-		}
-		if c.cards[0].Num != oneSameValue && c.cards[1].Num == oneSameValue {
+		} else if c.cards[0].Num != oneSameValue && c.cards[1].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3] = c.cards[1], c.cards[2], c.cards[3], c.cards[0]
 		}
 		c.maxHandValueType = HVThreeOfAKind
 		c.caculateValue()
 		return
 	}
-
 	//Four of a kind
 	if l == 4 && sl == 1 {
 		if c.cards[0].Num != oneSameValue {
@@ -357,7 +348,6 @@ func (c *HandValue) generalCheck() {
 		c.caculateValue()
 		return
 	}
-
 	//Full House
 	if l == 5 {
 		if c.cards[0].Num > c.cards[2].Num {

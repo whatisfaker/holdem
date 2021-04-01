@@ -8,7 +8,7 @@ import (
 
 func TestNewPoker(t *testing.T) {
 	a := NewPoker()
-	i := 1
+	i := 2
 	for i > 0 {
 		cs, err := a.GetCards(5)
 		if err != nil {
@@ -16,6 +16,7 @@ func TestNewPoker(t *testing.T) {
 			return
 		}
 		hands := make(map[int8]*HandValue)
+		t.Log("\n============ hand =============\n")
 		for j := 0; j < 9; j++ {
 			cs2, _ := a.GetCards(2)
 			allcs := append(cs, cs2...)
@@ -29,10 +30,10 @@ func TestNewPoker(t *testing.T) {
 			t.Log(str)
 			hands[int8(j)] = hand
 		}
-		t.Log("\n================================\n")
+		t.Log("\n============ max hand =============\n")
 		maxHands := GetMaxHandValueFromTaggedHandValues(hands)
 		for _, hand := range maxHands {
-			t.Log(hand)
+			t.Log(hand, hand.Value())
 		}
 		i--
 		a.Reset()
