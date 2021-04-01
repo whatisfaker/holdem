@@ -64,37 +64,6 @@ func (c ActionDef) String() string {
 	}
 }
 
-type Reciever interface {
-	ID() string
-	ErrorOccur(int, error)
-	//RoomerGameInformation 游戏信息
-	RoomerGameInformation(*Holdem)
-	//RoomerSeated 接收有人坐下
-	RoomerSeated(int8, UserInfo)
-	//RoomerRoomerStandUp
-	RoomerStandUp(int8, UserInfo)
-	//RoomerGetCard 接收有人收到牌（位置,牌数量)
-	RoomerGetCard([]int8, int8)
-	//RoomerGetPublicCard 接收公共牌
-	RoomerGetPublicCard([]*Card)
-	//RoomerGetAction 接收有人动作（按钮位, 位置，动作，金额(如果下注))
-	RoomerGetAction(int8, int8, ActionDef, int)
-	//RoomerGetShowCards 接收亮牌信息
-	RoomerGetShowCards([]*ShowCard)
-	//RoomerGetResult 接收牌局结果
-	RoomerGetResult([]*Result)
-	//PlayerGetCard 玩家获得自己发到的牌
-	PlayerGetCard(int8, []*Card, []int8, int8)
-	//PlayerCanBet 玩家可以开始下注(剩下筹码,本手已下注,本轮下注数量, 本轮的筹码数量, 最小下注额度)
-	PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round Round)
-	//PlayerBringInSuccess 玩家带入成功
-	PlayerBringInSuccess(seat int8, chip int)
-	//PlayerSeated 玩家坐下
-	PlayerSeated(int8)
-	//PlayerStandUp 玩家站起
-	PlayerStandUp(int8)
-}
-
 func NewAgent(recv Reciever, user UserInfo, log *zap.Logger) *Agent {
 	agent := &Agent{
 		user: user,
@@ -180,12 +149,10 @@ type potSort []*Agent
 
 func (p potSort) Len() int { return len(p) }
 
-// 根据元素的年龄降序排序 （此处按照自己的业务逻辑写）
 func (p potSort) Less(i, j int) bool {
 	return p[i].gameInfo.handBet < p[j].gameInfo.handBet
 }
 
-// 交换数据
 func (p potSort) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
 func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Duration) *Bet {
@@ -230,7 +197,6 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round) bool {
 	//第一个人/或者前面没有人下注
 	actions := make(map[ActionDef]int)
-	//c.log.Error("get bet", zap.Any("bet", bet))
 	if maxRoundBet == 0 {
 		if c.gameInfo.chip > minRaise {
 			actions[ActionDefFold] = 0
@@ -260,13 +226,14 @@ func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round)
 	}
 	amount, ok := actions[bet.Action]
 	if !ok {
+		c.log.Error("invalid bet action", zap.String("action", bet.Action.String()), zap.Int("num", bet.Num), zap.Int("maxbet", maxRoundBet), zap.Int("mybeted", c.gameInfo.roundBet), zap.Int("min_raise", minRaise), zap.Int("mychip", c.gameInfo.chip))
 		c.recv.ErrorOccur(ErrCodeInvalidBetAction, errInvalidBetAction)
 		return false
 	}
 	if (bet.Action == ActionDefRaise && bet.Num < amount) ||
 		(bet.Action == ActionDefBet && bet.Num < amount) ||
 		(bet.Action != ActionDefRaise && bet.Action != ActionDefBet && bet.Num != amount) {
-		fmt.Println(bet.Action.String(), bet.Num, amount, maxRoundBet, c.gameInfo.roundBet, minRaise)
+		c.log.Error("invalid bet num", zap.String("action", bet.Action.String()), zap.Int("num", bet.Num), zap.Int("maxbet", maxRoundBet), zap.Int("mybeted", c.gameInfo.roundBet), zap.Int("min_raise", minRaise), zap.Int("mychip", c.gameInfo.chip))
 		c.recv.ErrorOccur(ErrCodeInvalidBetNum, errInvalidBetNum)
 		return false
 	}

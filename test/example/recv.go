@@ -46,10 +46,6 @@ type rec struct {
 
 var _ holdem.Reciever = (*rec)(nil)
 
-func (c *rec) ID() string {
-	return c.id
-}
-
 //RoomerSeated 接收有人坐下
 func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo) {
 	c.ch <- &ServerAction{
