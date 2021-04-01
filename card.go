@@ -54,10 +54,10 @@ func (c HandValueType) String() string {
 }
 
 var (
-	cardMap              = map[int8]string{2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "J", 12: "Q", 13: "K", 14: "A"}
-	suitMap              = [4]string{"♠", "♥", "♣", "♦"}
-	InvalidCard          = fmt.Errorf("invalid card num(2-14)/suit(0-3)")
-	InvalidHandValueType = fmt.Errorf("Invalid hand value type")
+	cardMap                 = map[int8]string{2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "J", 12: "Q", 13: "K", 14: "A"}
+	suitMap                 = [4]string{"♠", "♥", "♣", "♦"}
+	ErrInvalidCard          = fmt.Errorf("invalid card num(2-14)/suit(0-3)")
+	ErrInvalidHandValueType = fmt.Errorf("invalid hand value type")
 )
 
 type Card struct {
@@ -67,10 +67,10 @@ type Card struct {
 
 func NewCard(num int8, suit int8) (*Card, error) {
 	if num < 2 || num > 14 {
-		return nil, InvalidCard
+		return nil, ErrInvalidCard
 	}
 	if suit < 0 || suit > 3 {
-		return nil, InvalidCard
+		return nil, ErrInvalidCard
 	}
 	return &Card{
 		Num:  num,
@@ -182,6 +182,7 @@ func (c *HandValue) DebugCards(nc []*Card) string {
 		}
 	}
 	str += "\n"
+	str += fmt.Sprintf("%d\n", c.value)
 	return str
 }
 
@@ -212,7 +213,7 @@ func (c *HandValue) caculateValue() {
 	case HVRoyalFlush:
 		c.value = int64(c.maxHandValueType)<<20 + int64(c.cards[0].Num)
 	default:
-		panic(InvalidHandValueType)
+		panic(ErrInvalidHandValueType)
 	}
 }
 
@@ -252,7 +253,6 @@ func (c *HandValue) isStraight() bool {
 }
 
 func (c *HandValue) generalCheck() {
-	//ppairs := make([][]*Card, 0)
 	ppairs := make(map[*Card]int8)
 	sameValues := make(map[int8]bool)
 	isFlush := true
@@ -296,46 +296,37 @@ func (c *HandValue) generalCheck() {
 	if l == 2 {
 		if c.cards[1].Num == oneSameValue && c.cards[2].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2] = c.cards[1], c.cards[2], c.cards[0]
-		}
-
-		if c.cards[2].Num == oneSameValue && c.cards[3].Num == oneSameValue {
+		} else if c.cards[2].Num == oneSameValue && c.cards[3].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3] = c.cards[2], c.cards[3], c.cards[0], c.cards[1]
-		}
-
-		if c.cards[3].Num == oneSameValue && c.cards[4].Num == oneSameValue {
+		} else if c.cards[3].Num == oneSameValue && c.cards[4].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[3], c.cards[4], c.cards[0], c.cards[1], c.cards[2]
 		}
 		c.maxHandValueType = HVOnePair
 		c.caculateValue()
 		return
 	}
-
 	//Two Pair
 	if l == 4 && sl == 2 {
 		if c.cards[0].Num != c.cards[1].Num {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[1], c.cards[2], c.cards[3], c.cards[4], c.cards[0]
-		}
-		if c.cards[2].Num != c.cards[3].Num {
+		} else if c.cards[2].Num != c.cards[3].Num {
 			c.cards[2], c.cards[3], c.cards[4] = c.cards[3], c.cards[4], c.cards[2]
 		}
 		c.maxHandValueType = HVTwoPair
 		c.caculateValue()
 		return
 	}
-
 	//Three of A kind
 	if l == 3 {
 		if c.cards[0].Num != oneSameValue && c.cards[1].Num != oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3], c.cards[4] = c.cards[2], c.cards[3], c.cards[4], c.cards[0], c.cards[1]
-		}
-		if c.cards[0].Num != oneSameValue && c.cards[1].Num == oneSameValue {
+		} else if c.cards[0].Num != oneSameValue && c.cards[1].Num == oneSameValue {
 			c.cards[0], c.cards[1], c.cards[2], c.cards[3] = c.cards[1], c.cards[2], c.cards[3], c.cards[0]
 		}
 		c.maxHandValueType = HVThreeOfAKind
 		c.caculateValue()
 		return
 	}
-
 	//Four of a kind
 	if l == 4 && sl == 1 {
 		if c.cards[0].Num != oneSameValue {
@@ -345,7 +336,6 @@ func (c *HandValue) generalCheck() {
 		c.caculateValue()
 		return
 	}
-
 	//Full House
 	if l == 5 {
 		if c.cards[0].Num > c.cards[2].Num {
