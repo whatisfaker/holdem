@@ -1,6 +1,9 @@
 package holdem
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 //HandValueType 手牌牌型类型
 //https://zh.wikipedia.org/wiki/%E5%BE%B7%E5%B7%9E%E6%92%B2%E5%85%8B#%E7%89%8C%E5%9E%8B%E5%A4%A7%E5%B0%8F%E8%A7%84%E5%88%99
@@ -56,8 +59,8 @@ func (c HandValueType) String() string {
 var (
 	cardMap                 = map[int8]string{2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "J", 12: "Q", 13: "K", 14: "A"}
 	suitMap                 = [4]string{"♠", "♥", "♣", "♦"}
-	ErrInvalidCard          = fmt.Errorf("invalid card num(2-14)/suit(0-3)")
-	ErrInvalidHandValueType = fmt.Errorf("invalid hand value type")
+	ErrInvalidCard          = errors.New("invalid card num(2-14)/suit(0-3)")
+	ErrInvalidHandValueType = errors.New("invalid hand value type")
 )
 
 type Card struct {
@@ -96,7 +99,7 @@ type HandValue struct {
 //NewHandValue 创建手牌（已计算最高牌型）
 func NewHandValue(nc []*Card) (*HandValue, error) {
 	if len(nc) != 5 {
-		return nil, fmt.Errorf("cards length is not 5")
+		return nil, errors.New("cards length is not 5")
 	}
 	var a [5]*Card
 	copy(a[:], nc)
