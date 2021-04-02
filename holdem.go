@@ -88,7 +88,7 @@ func NewHoldem(
 }
 
 //Join 加入游戏,并没有坐下
-func (c *Holdem) Join(rs ...*Agent) {
+func (c *Holdem) join(rs ...*Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
 	for _, r := range rs {
@@ -98,7 +98,7 @@ func (c *Holdem) Join(rs ...*Agent) {
 }
 
 //Seated 坐下
-func (c *Holdem) Seated(i int8, r *Agent) {
+func (c *Holdem) seated(i int8, r *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
 	if c.players[i] != nil {
@@ -113,7 +113,7 @@ func (c *Holdem) Seated(i int8, r *Agent) {
 	c.players[i] = r
 	c.playerCount++
 	//通知自己坐下了
-	r.recv.PlayerSeated(i)
+	r.recv.PlayerSeatedSuccess(i)
 	//通知其他人
 	for rr := range c.roomers {
 		if rr != r {
@@ -127,12 +127,15 @@ func (c *Holdem) Seated(i int8, r *Agent) {
 	}
 }
 
-//StandUp 站起来
-func (c *Holdem) StandUp(i int8, r *Agent, disableLock ...bool) {
-	if len(disableLock) == 0 {
-		c.seatLock.Lock()
-		defer c.seatLock.Unlock()
-	}
+//directStandUp 不用等待本手结束直接站起来
+func (c *Holdem) directStandUp(i int8, r *Agent) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	c.standUp(i, r)
+}
+
+//standUp 站起来
+func (c *Holdem) standUp(i int8, r *Agent) {
 	r.gameInfo = nil
 	delete(c.players, i)
 	c.playerCount--
@@ -330,7 +333,7 @@ func (c *Holdem) preflop() ([]*Agent, bool) {
 			r.recv.RoomerGetShowCards(scs)
 		}
 	}
-	c.log.Debug(RoundPreFlop.String()+" bet end", zap.Int("left", len(unfoldUsers)))
+	c.log.Debug(RoundPreFlop.String()+" bet end", zap.Int("left", len(unfoldUsers)), zap.Bool("showcard", showcard))
 	return unfoldUsers, showcard
 }
 
@@ -410,7 +413,7 @@ func (c *Holdem) flopTurnRiver(round Round) ([]*Agent, bool) {
 			r.recv.RoomerGetShowCards(scs)
 		}
 	}
-	c.log.Debug(round.String()+" bet begin", zap.Int("left", len(unfoldUsers)))
+	c.log.Debug(round.String()+" bet end", zap.Int("left", len(unfoldUsers)), zap.Bool("showcard", showcard))
 	return unfoldUsers, showcard
 }
 
@@ -657,9 +660,15 @@ func (c *Holdem) Wait() {
 			//清理座位用户
 			c.seatLock.Lock()
 			for i, r := range c.players {
+				r.gameInfo.ResetForNextHand()
 				if r.gameInfo.chip == 0 {
-					c.log.Debug("auto stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
-					c.StandUp(i, r, true)
+					c.log.Debug("less chip auto stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+					c.standUp(i, r)
+					continue
+				}
+				if r.gameInfo.needStandUp {
+					c.log.Debug("user stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+					c.standUp(i, r)
 				}
 			}
 			c.seatLock.Unlock()

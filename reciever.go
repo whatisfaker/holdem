@@ -25,8 +25,10 @@ type Reciever interface {
 	PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round Round)
 	//PlayerBringInSuccess 玩家带入成功
 	PlayerBringInSuccess(seat int8, chip int)
-	//PlayerSeated 玩家坐下
-	PlayerSeated(int8)
+	//PlayerSeatedSuccess 玩家坐下成功
+	PlayerSeatedSuccess(int8)
+	//PlayerReadyStandUpSuccess 玩家准备站起成功
+	PlayerReadyStandUpSuccess(int8)
 	//PlayerStandUp 玩家站起
 	PlayerStandUp(int8)
 }

@@ -9,6 +9,9 @@ const (
 	ErrCodeNoChip
 	ErrCodeInvalidBetAction
 	ErrCodeInvalidBetNum
+	ErrCodeNotPlaying
+	ErrCodeNoJoin
+	ErrCodeNoSeat
 )
 
 var (
@@ -18,4 +21,7 @@ var (
 	errNoChip           = errors.New("you have bring in first")
 	errInvalidBetAction = errors.New("invalid bet action")
 	errInvalidBetNum    = errors.New("invalid bet amount")
+	errNotPlaying       = errors.New("you are not playing")
+	errNoJoin           = errors.New("no game join")
+	errNoSeat           = errors.New("not seated")
 )

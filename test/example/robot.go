@@ -16,6 +16,7 @@ const (
 	RABringIn
 	RASeat
 	RABet
+	RAStandUp
 )
 
 type SA int8

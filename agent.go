@@ -20,6 +20,7 @@ type Agent struct {
 	user       UserInfo
 	log        *zap.Logger
 	recv       Reciever
+	h          *Holdem
 	gameInfo   *GameInfo
 	betCh      chan *Bet
 	atomAction int32
@@ -60,7 +61,7 @@ func (c ActionDef) String() string {
 	case ActionDefAllIn:
 		return "all in"
 	default:
-		return "unknown"
+		return "ready"
 	}
 }
 
@@ -87,6 +88,7 @@ func (c *Agent) String() string {
 	return fmt.Sprintf("chip:%d, roundBet:%d, handBet:%d", c.gameInfo.chip, c.gameInfo.roundBet, c.gameInfo.roundBet)
 }
 
+//ShowUser 展示用户信息
 func (c *Agent) ShowUser() *ShowUser {
 	if c.gameInfo == nil {
 		return nil
@@ -110,7 +112,18 @@ func (c *Agent) ShowUser() *ShowUser {
 	return c.showUser
 }
 
+//Join 加入游戏
+func (c *Agent) Join(holdem *Holdem) {
+	holdem.join(c)
+	c.h = holdem
+}
+
+//BringIn 带入筹码
 func (c *Agent) BringIn(chip int) {
+	if c.h == nil {
+		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
+		return
+	}
 	if chip <= 0 {
 		c.ErrorOccur(ErrCodeLessChip, errLessChip)
 		return
@@ -119,6 +132,42 @@ func (c *Agent) BringIn(chip int) {
 		chip: chip,
 	}
 	c.recv.PlayerBringInSuccess(0, chip)
+}
+
+//Seated 坐下
+func (c *Agent) Seated(i int8) {
+	if c.h == nil {
+		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
+		return
+	}
+	c.h.seated(i, c)
+}
+
+//StandUp 站起来
+func (c *Agent) StandUp() {
+	if c.gameInfo == nil {
+		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber <= 0 {
+		c.ErrorOccur(ErrCodeNoSeat, errNoSeat)
+		return
+	}
+	c.gameInfo.needStandUp = true
+	if c.gameInfo.status == ActionDefNone {
+		c.h.directStandUp(c.gameInfo.seatNumber, c)
+		return
+	}
+	c.recv.PlayerReadyStandUpSuccess(c.gameInfo.seatNumber)
+}
+
+//Bet 下注
+func (c *Agent) Bet(bet *Bet) {
+	if c.canAction() {
+		c.betCh <- bet
+		return
+	}
+	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
 }
 
 func (c *Agent) canAction() bool {
@@ -135,14 +184,6 @@ func (c *Agent) enableAction(enable bool) {
 	if atomic.LoadInt32(&c.atomAction) == 1 {
 		atomic.AddInt32(&c.atomAction, -1)
 	}
-}
-
-func (c *Agent) Bet(bet *Bet) {
-	if c.canAction() {
-		c.betCh <- bet
-		return
-	}
-	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
 }
 
 type potSort []*Agent
@@ -194,6 +235,7 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 	}
 }
 
+//isValidBet 判断是否是有效的投注
 func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round) bool {
 	//第一个人/或者前面没有人下注
 	actions := make(map[ActionDef]int)
@@ -238,9 +280,4 @@ func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round)
 		return false
 	}
 	return true
-}
-
-type ShowCard struct {
-	SeatNumber int8
-	Cards      []*Card
 }

@@ -175,9 +175,16 @@ func (c *rec) PlayerBringInSuccess(seat int8, chip int) {
 	}
 }
 
-func (c *rec) PlayerSeated(seat int8) {
+func (c *rec) PlayerSeatedSuccess(seat int8) {
 	c.ch <- &ServerAction{
 		Action: SASelfSeated,
+		Seat:   seat,
+	}
+}
+
+func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
+	c.ch <- &ServerAction{
+		Action: SASelfStandUp,
 		Seat:   seat,
 	}
 }

@@ -73,6 +73,7 @@ func (c *Server) Connect(r *Robot) {
 		log: l,
 	}
 	agent := holdem.NewAgent(recv, &player{
+		id:   fmt.Sprintf("id-%d", id),
 		name: fmt.Sprintf("na-%d", id),
 	}, l)
 	a := &agentWrapper{
@@ -87,13 +88,15 @@ func (c *agentWrapper) read() {
 	for o := range c.r.OutCh() {
 		switch o.Action {
 		case RAJoin:
-			c.hub.h.Join(c.agent)
+			c.agent.Join(c.hub.h)
 		case RABringIn:
 			c.agent.BringIn(o.Num)
 		case RASeat:
-			c.hub.h.Seated(int8(o.Num), c.agent)
+			c.agent.Seated(int8(o.Num))
 		case RABet:
 			c.agent.Bet(o.Bet)
+		case RAStandUp:
+			c.agent.StandUp()
 		default:
 			panic(fmt.Sprintf("unknown action %d", o.Action))
 		}

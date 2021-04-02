@@ -10,6 +10,7 @@ type UserInfo interface {
 type GameInfo struct {
 	seatNumber  int8
 	status      ActionDef
+	needStandUp bool //需要离开
 	roundBet    int
 	handBet     int
 	chip        int
@@ -35,14 +36,11 @@ func (c *GameInfo) CalcHandValue(pc []*Card) {
 	c.cardResults = append(c.cardResults, NewCardResult(c.cards[1], mp[6]))
 }
 
-func (c *GameInfo) Reset(standUp ...bool) {
-	if len(standUp) > 0 {
-		c.seatNumber = -1
-		c.chip = 0
-	}
+func (c *GameInfo) ResetForNextHand() {
 	c.status = ActionDefNone
 	c.roundBet = 0
 	c.handBet = 0
 	c.cards = nil
 	c.handValue = nil
+	c.cardResults = nil
 }

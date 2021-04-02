@@ -10,6 +10,11 @@ type CardResult struct {
 	//CardIndex int //牌的位置 （0-1）手牌 （2-6）公共牌
 }
 
+type ShowCard struct {
+	SeatNumber int8
+	Cards      []*Card
+}
+
 func NewCardResult(card *Card, selected bool) *CardResult {
 	return &CardResult{
 		Card:     card,
