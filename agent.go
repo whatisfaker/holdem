@@ -196,7 +196,7 @@ func (p potSort) Less(i, j int) bool {
 
 func (p potSort) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
-func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Duration) *Bet {
+func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Duration) (rbet *Bet) {
 	c.enableAction(true)
 	c.betCh = make(chan *Bet, 1)
 	timer := time.NewTimer(timeout)
@@ -204,7 +204,7 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 		c.enableAction(false)
 		close(c.betCh)
 		timer.Stop()
-		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
+		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.String("round", round.String()))
 	}()
 	//稍微延迟告诉客户端可以下注
 	time.AfterFunc(200*time.Millisecond, func() {
@@ -224,13 +224,15 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 				c.gameInfo.roundBet += bet.Num
 				c.gameInfo.chip -= bet.Num
 				c.enableAction(false)
-				return bet
+				rbet = bet
+				return
 			}
 		case <-timer.C:
 			c.gameInfo.status = ActionDefFold
-			return &Bet{
+			rbet = &Bet{
 				Action: ActionDefFold,
 			}
+			return
 		}
 	}
 }
