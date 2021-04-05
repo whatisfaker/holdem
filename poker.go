@@ -8,8 +8,6 @@ import (
 	"errors"
 )
 
-const maxCardNum = 52
-
 var pokerCards []*Card
 var smOnce sync.Once
 var ErrCardOutOfIndex = errors.New("left cards count is less than expect")
@@ -18,6 +16,7 @@ var ErrInvalidCardLength = errors.New("unsupported card length")
 type Poker struct {
 	cards        []*Card
 	currentIndex int
+	maxCards     int
 }
 
 func init() {
@@ -45,6 +44,25 @@ func NewPoker() *Poker {
 	return &Poker{
 		cards:        cards,
 		currentIndex: 0,
+		maxCards:     len(cards),
+	}
+}
+
+func newPokerWithExceptCardsAndNoShuffle(exceptCards []*Card) *Poker {
+	exceptMap := make(map[int8]bool)
+	for _, card := range exceptCards {
+		exceptMap[15*card.Suit+card.Num] = true
+	}
+	cards := make([]*Card, 0)
+	for _, v := range pokerCards {
+		if _, ok := exceptMap[15*v.Suit+v.Num]; !ok {
+			cards = append(cards, v)
+		}
+	}
+	return &Poker{
+		cards:        cards,
+		currentIndex: 0,
+		maxCards:     len(cards),
 	}
 }
 
@@ -69,7 +87,7 @@ func (c *Poker) ResetAfterOffset(offset int) {
 func (c *Poker) GetCards(n int) ([]*Card, error) {
 	t := c.currentIndex
 	t += n
-	if t > maxCardNum-1 {
+	if t > c.maxCards-1 {
 		return nil, ErrCardOutOfIndex
 	}
 	c.currentIndex = t
@@ -79,6 +97,86 @@ func (c *Poker) GetCards(n int) ([]*Card, error) {
 //State 当前排序，最大牌数
 func (c *Poker) State() (int, int) {
 	return c.currentIndex, len(c.cards)
+}
+
+type Outs struct {
+	TargetSeat int8
+	Len        int
+	Detail     map[int8]map[*Card]*HandValue
+}
+
+//GetOuts 通过手牌，和预测手牌，计算每个分组中领先者对应的他人Outs
+func GetOuts(allHands map[int8]*HandValue, allNextHands map[int8]map[*Card]*HandValue, groupSeatsArray []map[int8]bool) []*Outs {
+	ret := make([]*Outs, 0)
+	for _, gp := range groupSeatsArray {
+		groupSeats := gp
+		mp := make(map[int8]*HandValue)
+		for s, v := range allHands {
+			if _, ok := groupSeats[s]; ok {
+				mp[s] = v
+			} else {
+				delete(allHands, s)
+			}
+		}
+		max := GetMaxHandValueFromTaggedHandValues(mp)
+		for s := range max {
+			delete(groupSeats, s)
+		}
+		for s := range max {
+			target := allNextHands[s]
+			outs := &Outs{
+				TargetSeat: s,
+				Len:        0,
+				Detail:     make(map[int8]map[*Card]*HandValue),
+			}
+			for cd := range target {
+				for os := range groupSeats {
+					if allNextHands[os][cd].value >= target[cd].value {
+						outs.Len++
+						_, ok := outs.Detail[os]
+						if !ok {
+							outs.Detail[os] = make(map[*Card]*HandValue)
+						}
+						outs.Detail[os][cd] = allNextHands[os][cd]
+					}
+				}
+			}
+			ret = append(ret, outs)
+		}
+	}
+	return ret
+}
+
+//GetAllOuts 获取每一张补牌对应的最大手牌(当前最大手牌,和每发一张牌的最大手牌)
+func GetAllOuts(publicCards []*Card, seatCards map[int8][]*Card) (map[int8]*HandValue, map[int8]map[*Card]*HandValue) {
+	eCards := append(make([]*Card, 0), publicCards...)
+	mp := make(map[int8]*HandValue)
+	for s, v := range seatCards {
+		eCards = append(eCards, v...)
+		hv, _ := GetMaxHandValueFromCard(append(publicCards, v...))
+		mp[s] = hv
+	}
+	poker := newPokerWithExceptCardsAndNoShuffle(eCards)
+	pcs := make(map[int8]map[*Card]*HandValue)
+	for {
+		cards, err := poker.GetCards(1)
+		if err != nil {
+			break
+		}
+		card := cards[0]
+		for seat, v := range seatCards {
+			cds := append(publicCards, v...)
+			cds = append(cds, card)
+			ohv, _ := GetMaxHandValueFromCard(cds)
+			cardsMap, ok := pcs[seat]
+			if !ok {
+				cardsMap = make(map[*Card]*HandValue)
+			}
+			cardsMap[card] = ohv
+			pcs[seat] = cardsMap
+		}
+	}
+	return mp, pcs
 }
 
 func GetHandValueFromCard(nc []*Card) ([]*HandValue, error) {

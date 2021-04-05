@@ -21,6 +21,9 @@ type Reciever interface {
 	RoomerGetResult([]*Result)
 	//PlayerGetCard 玩家获得自己发到的牌
 	PlayerGetCard(int8, []*Card, []int8, int8)
+	PlayerCanNotBuyInsurance(seat int8, outsLen int, round Round)
+	//PlayerCanBuyInsurance 玩家可以开始下注(剩下筹码,本手已下注,本轮下注数量, 本轮的筹码数量, 最小下注额度)
+	PlayerCanBuyInsurance(seat int8, outsLen int, odds float64, outs map[int8]map[*Card]*HandValue, round Round)
 	//PlayerCanBet 玩家可以开始下注(剩下筹码,本手已下注,本轮下注数量, 本轮的筹码数量, 最小下注额度)
 	PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round Round)
 	//PlayerBringInSuccess 玩家带入成功

@@ -260,3 +260,45 @@ func TestHVRoyalFlush(t *testing.T) {
 	assert.Equal(r2.MaxHandValueType(), HVRoyalFlush)
 	assert.Equal(r2.Value() > r1.Value(), true)
 }
+
+func TestGetOuts(t *testing.T) {
+	publicCards := make([]*Card, 3)
+	publicCards[0], _ = NewCard(7, 2)
+	publicCards[1], _ = NewCard(9, 2)
+	publicCards[2], _ = NewCard(13, 0)
+	//publcCards[3], _ = NewCard(14, 0)
+
+	mp := make(map[int8][]*Card)
+	cards := make([]*Card, 2)
+	cards[0], _ = NewCard(8, 2)
+	cards[1], _ = NewCard(9, 1)
+	mp[2] = cards
+
+	cards = make([]*Card, 2)
+	cards[0], _ = NewCard(13, 2)
+	cards[1], _ = NewCard(14, 1)
+	mp[1] = cards
+
+	mp1, mp2 := GetAllOuts(publicCards, mp)
+
+	outs := GetOuts(mp1, mp2, []map[int8]bool{{1: true, 2: true}})
+	for _, v := range outs {
+		if v.Len > 0 {
+			for seat, m := range v.Detail {
+				for cd, vv := range m {
+					t.Log(seat, cd, vv)
+				}
+			}
+		}
+	}
+}
+
+func TestGoRoutine(t *testing.T) {
+	a := make(chan int, 10)
+	a <- 1
+	a <- 2
+	close(a)
+	for c := range a {
+		t.Log(c)
+	}
+}

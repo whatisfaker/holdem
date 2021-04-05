@@ -189,6 +189,14 @@ func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
 	}
 }
 
+func (c *rec) PlayerCanNotBuyInsurance(seat int8, outsLen int, round holdem.Round) {
+
+}
+
+func (c *rec) PlayerCanBuyInsurance(seat int8, outsLen int, odds float64, outs map[int8]map[*holdem.Card]*holdem.HandValue, round holdem.Round) {
+
+}
+
 func (c *rec) PlayerStandUp(seat int8) {
 	c.ch <- &ServerAction{
 		Action: SASelfStandUp,

@@ -92,6 +92,14 @@ func (c Card) NumString() string {
 	return cardMap[c.Num]
 }
 
+func (c Card) String() string {
+	return suitMap[c.Suit] + cardMap[c.Num]
+}
+
+func (c Card) Value() int8 {
+	return c.Suit*15 + c.Num
+}
+
 //HandValue 手牌
 type HandValue struct {
 	cards            [5]*Card

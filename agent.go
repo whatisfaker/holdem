@@ -2,6 +2,7 @@ package holdem
 
 import (
 	"fmt"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -17,15 +18,17 @@ type ShowUser struct {
 }
 
 type Agent struct {
-	user       UserInfo
-	log        *zap.Logger
-	recv       Reciever
-	h          *Holdem
-	gameInfo   *GameInfo
-	betCh      chan *Bet
-	atomAction int32
-	showUser   *ShowUser
-	nextAgent  *Agent
+	user              UserInfo
+	log               *zap.Logger
+	recv              Reciever
+	h                 *Holdem
+	gameInfo          *GameInfo
+	betCh             chan *Bet
+	insuranceCh       chan []*BuyInsurance
+	atomBetLock       int32
+	atomInsuranceLock int32
+	showUser          *ShowUser
+	nextAgent         *Agent
 }
 
 type ActionDef int8
@@ -78,6 +81,24 @@ type Bet struct {
 	Action ActionDef
 	//Num 这次投入的数量
 	Num int
+}
+
+type BuyInsurance struct {
+	Card *Card
+	Num  int
+}
+
+type InsuranceResult struct {
+	//SeatNumber 座位号
+	SeatNumber int8
+	//Cost 消费
+	Cost int
+	//Earn 获取
+	Earn float64
+	//Outs 补牌数
+	Outs int
+	//Round 回合
+	Round Round
 }
 
 func (c *Agent) ErrorOccur(a int, e error) {
@@ -163,45 +184,141 @@ func (c *Agent) StandUp() {
 
 //Bet 下注
 func (c *Agent) Bet(bet *Bet) {
-	if c.canAction() {
+	if c.canBet() {
 		c.betCh <- bet
 		return
 	}
 	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
 }
 
-func (c *Agent) canAction() bool {
-	return atomic.LoadInt32(&c.atomAction) == 1
+func (c *Agent) canBet() bool {
+	return atomic.LoadInt32(&c.atomBetLock) == 1
 }
 
-func (c *Agent) enableAction(enable bool) {
+func (c *Agent) enableBet(enable bool) {
 	if enable {
-		if atomic.LoadInt32(&c.atomAction) == 0 {
-			atomic.AddInt32(&c.atomAction, 1)
+		if atomic.LoadInt32(&c.atomBetLock) == 0 {
+			atomic.AddInt32(&c.atomBetLock, 1)
 		}
 		return
 	}
-	if atomic.LoadInt32(&c.atomAction) == 1 {
-		atomic.AddInt32(&c.atomAction, -1)
+	if atomic.LoadInt32(&c.atomBetLock) == 1 {
+		atomic.AddInt32(&c.atomBetLock, -1)
 	}
 }
 
-type potSort []*Agent
+//Bet 下注
+func (c *Agent) BuyInsurance(insurance []*BuyInsurance) {
+	if c.canBuyInsurance() {
+		c.insuranceCh <- insurance
+		return
+	}
+	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
+}
 
-func (p potSort) Len() int { return len(p) }
+func (c *Agent) canBuyInsurance() bool {
+	return atomic.LoadInt32(&c.atomInsuranceLock) == 1
+}
 
-func (p potSort) Less(i, j int) bool {
+func (c *Agent) enableBuyInsurance(enable bool) {
+	if enable {
+		if atomic.LoadInt32(&c.atomInsuranceLock) == 0 {
+			atomic.AddInt32(&c.atomInsuranceLock, 1)
+		}
+		return
+	}
+	if atomic.LoadInt32(&c.atomInsuranceLock) == 1 {
+		atomic.AddInt32(&c.atomInsuranceLock, -1)
+	}
+}
+
+func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8]map[*Card]*HandValue, round Round, timeout time.Duration) *InsuranceResult {
+	c.enableBuyInsurance(true)
+	c.insuranceCh = make(chan []*BuyInsurance, 1)
+	c.gameInfo.insurance = make(map[int8]*BuyInsurance)
+	timer := time.NewTimer(timeout)
+	defer func() {
+		c.enableBuyInsurance(false)
+		close(c.insuranceCh)
+		timer.Stop()
+		//c.log.Debug("buy insurance end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.String("round", round.String()))
+	}()
+	//稍微延迟告诉客户端可以下注
+	time.AfterFunc(200*time.Millisecond, func() {
+		c.log.Debug("wait bet", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
+		c.recv.PlayerCanBuyInsurance(c.gameInfo.seatNumber, outsLen, odds, outs, round)
+	})
+	//循环如果投注错误,还可以让客户重新投注直到超时
+	for {
+		select {
+		case is, ok := <-c.insuranceCh:
+			if !ok {
+				return nil
+			}
+			cost := 0
+			for _, v := range is {
+				c.gameInfo.insurance[v.Card.Value()] = v
+				cost += v.Num
+			}
+			return &InsuranceResult{
+				SeatNumber: c.gameInfo.seatNumber,
+				Round:      round,
+				Cost:       cost,
+				Outs:       outsLen,
+			}
+		case <-timer.C:
+			return nil
+		}
+	}
+}
+
+type betSort []*Agent
+
+func (p betSort) Len() int { return len(p) }
+
+func (p betSort) Less(i, j int) bool {
 	return p[i].gameInfo.handBet < p[j].gameInfo.handBet
 }
 
-func (p potSort) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+func (p betSort) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+
+//BetGroup 下注分组
+type BetGroup struct {
+	//SeatNumber 相同下注的座位号
+	SeatNumber map[int8]bool
+	//Num 数量
+	Num int
+}
+
+func (p betSort) GroupBet() []map[int8]bool {
+	sort.Sort(p)
+	var pot map[int8]bool
+	pots := make([]map[int8]bool, 0)
+	var num int
+	for _, a := range p {
+		if pot == nil {
+			pot = map[int8]bool{a.gameInfo.seatNumber: true}
+			num = a.gameInfo.handBet
+			continue
+		}
+		if a.gameInfo.handBet == num {
+			pot[a.gameInfo.seatNumber] = true
+		} else {
+			pots = append(pots, pot)
+			pot = map[int8]bool{a.gameInfo.seatNumber: true}
+			num = a.gameInfo.handBet
+		}
+	}
+	pots = append(pots, pot)
+	return pots
+}
 
 func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Duration) (rbet *Bet) {
-	c.enableAction(true)
+	c.enableBet(true)
 	c.betCh = make(chan *Bet, 1)
 	timer := time.NewTimer(timeout)
 	defer func() {
-		c.enableAction(false)
+		c.enableBet(false)
 		close(c.betCh)
 		timer.Stop()
 		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.String("round", round.String()))
@@ -223,7 +340,7 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 				c.gameInfo.handBet += bet.Num
 				c.gameInfo.roundBet += bet.Num
 				c.gameInfo.chip -= bet.Num
-				c.enableAction(false)
+				c.enableBet(false)
 				rbet = bet
 				return
 			}

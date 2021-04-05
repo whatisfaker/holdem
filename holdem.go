@@ -32,28 +32,33 @@ func (c Round) String() string {
 }
 
 type Holdem struct {
-	poker              *Poker                           //扑克
-	handNum            uint                             //手数
-	seatCount          int8                             //座位数量
-	playerCount        int8                             //座位上用户数量
-	players            map[int8]*Agent                  //座位上用户字典
-	playingPlayerCount int8                             //当前游戏玩家数量（座位上游戏的）
-	roomers            map[*Agent]bool                  //参与游戏的玩家（包括旁观）
-	buttonSeat         int8                             //庄家座位号
-	button             *Agent                           //庄家玩家
-	waitBetTimeout     time.Duration                    //等待下注的超时时间
-	seatLock           sync.Mutex                       //玩家锁
-	isStarted          bool                             //是否开始
-	sb                 int                              //小盲
-	ante               int                              //前注
-	pot                int                              //彩池
-	roundBet           int                              //当前轮下注额
-	minRaise           int                              //最小加注量
-	publicCards        []*Card                          //公共牌
-	log                *zap.Logger                      //日志
-	autoStart          bool                             //是否自动开始
-	minPlayers         int8                             //最小自动开始玩家
-	nextGame           func(uint) (bool, time.Duration) //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
+	poker                *Poker                           //扑克
+	handNum              uint                             //手数
+	seatCount            int8                             //座位数量
+	playerCount          int8                             //座位上用户数量
+	players              map[int8]*Agent                  //座位上用户字典
+	playingPlayerCount   int8                             //当前游戏玩家数量（座位上游戏的）
+	roomers              map[*Agent]bool                  //参与游戏的玩家（包括旁观）
+	buttonSeat           int8                             //庄家座位号
+	button               *Agent                           //庄家玩家
+	waitBetTimeout       time.Duration                    //等待下注的超时时间
+	seatLock             sync.Mutex                       //玩家锁
+	isStarted            bool                             //是否开始
+	sb                   int                              //小盲
+	ante                 int                              //前注
+	pot                  int                              //彩池
+	roundBet             int                              //当前轮下注额
+	minRaise             int                              //最小加注量
+	publicCards          []*Card                          //公共牌
+	log                  *zap.Logger                      //日志
+	autoStart            bool                             //是否自动开始
+	minPlayers           int8                             //最小自动开始玩家
+	nextGame             func(uint) (bool, time.Duration) //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
+	insurance            bool                             //是否有保险
+	insuranceOdds        map[int]float64                  //保险赔率
+	insuranceWaitTimeout time.Duration
+	insuranceResult      map[int8]map[Round]*InsuranceResult
+	insuranceUsers       []*Agent
 }
 
 func NewHoldem(
@@ -64,6 +69,7 @@ func NewHoldem(
 	minPlayers int8, //最小游戏人数
 	waitBetTimeout time.Duration, //等待下注超时时间
 	nextGame func(uint) (bool, time.Duration), //是否继续下一手判断/等待时间
+	insurance bool, //保险
 	log *zap.Logger, //日志
 ) *Holdem {
 	if nextGame == nil {
@@ -83,6 +89,7 @@ func NewHoldem(
 		sb:             sb,
 		ante:           ante,
 		log:            log,
+		insurance:      insurance,
 		nextGame:       nextGame,
 	}
 }
@@ -509,7 +516,7 @@ func (c *Holdem) deal(cnt int) {
 }
 
 //dealPublicCards 发公共牌
-func (c *Holdem) dealPublicCards(n int) {
+func (c *Holdem) dealPublicCards(n int) []*Card {
 	c.log.Debug("deal public cards", zap.Int("cards_count", n))
 	//洗牌
 	_, _ = c.poker.GetCards(1)
@@ -518,11 +525,12 @@ func (c *Holdem) dealPublicCards(n int) {
 	for r := range c.roomers {
 		r.recv.RoomerGetPublicCard(cards)
 	}
+	return cards
 }
 
 //complexWin 斗牌结算
 func (c *Holdem) complexWin(users []*Agent) {
-	pots := c.calcPot(users)
+	pots, _ := c.calcPot(users)
 	results, _, _ := c.calcWin(users, pots)
 	c.pot = 0
 	ret := make([]*Result, 0)
@@ -539,6 +547,10 @@ func (c *Holdem) complexWin(users []*Agent) {
 		if rv, ok := results[u.gameInfo.seatNumber]; ok {
 			u.gameInfo.chip += rv.Num
 			r.Num = rv.Num
+		}
+		//保险
+		if iv, ok := c.insuranceResult[u.gameInfo.seatNumber]; ok {
+			r.InsuranceResult = iv
 		}
 		r.Chip = u.gameInfo.chip
 		ret = append(ret, r)
@@ -565,6 +577,10 @@ func (c *Holdem) simpleWin(agent *Agent) {
 			u.gameInfo.chip += c.pot
 			r.Num = c.pot
 			c.pot = 0
+		}
+		//保险
+		if iv, ok := c.insuranceResult[u.gameInfo.seatNumber]; ok {
+			r.InsuranceResult = iv
 		}
 		r.Chip = u.gameInfo.chip
 		ret = append(ret, r)
@@ -612,8 +628,18 @@ func (c *Holdem) startHand() {
 			return
 		}
 	}
+	//已亮牌并且有保险开始保险逻辑
+	if showcard && c.insurance {
+		//等待买保险
+		c.insuranceStart(users, RoundFlop)
+	}
 	//洗牌,并发送1张公共牌
-	c.dealPublicCards(1)
+	cards := c.dealPublicCards(1)
+	//已亮牌并且有保险开始保险计算
+	if showcard && c.insurance {
+		//保险计算结果
+		c.insuranceEnd(cards[0], RoundFlop)
+	}
 	//未亮牌要下注
 	if !showcard {
 		//转牌轮下注
@@ -624,8 +650,18 @@ func (c *Holdem) startHand() {
 			return
 		}
 	}
+	//已亮牌并且有保险开始保险逻辑
+	if showcard && c.insurance {
+		//等待买保险
+		c.insuranceStart(users, RoundTurn)
+	}
 	//洗牌,并发送1张公共牌
-	c.dealPublicCards(1)
+	cards = c.dealPublicCards(1)
+	//已亮牌并且有保险开始保险计算
+	if showcard && c.insurance {
+		//保险计算结果
+		c.insuranceEnd(cards[0], RoundTurn)
+	}
 	//未亮牌要下注
 	if !showcard {
 		//河牌轮下注

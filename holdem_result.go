@@ -1,9 +1,5 @@
 package holdem
 
-import (
-	"sort"
-)
-
 type CardResult struct {
 	Card     *Card
 	Selected bool
@@ -25,11 +21,12 @@ func NewCardResult(card *Card, selected bool) *CardResult {
 }
 
 type Result struct {
-	SeatNumber    int8
-	Num           int
-	Cards         []*CardResult
-	HandValueType HandValueType
-	Chip          int
+	SeatNumber      int8
+	Num             int
+	Cards           []*CardResult
+	HandValueType   HandValueType
+	Chip            int
+	InsuranceResult map[Round]*InsuranceResult
 }
 
 //showDown 亮牌并计算获胜牌型，返回获胜的玩家和剩余的
@@ -108,8 +105,8 @@ func (c *Holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent,
 	return results, leftUsers, leftPots
 }
 
-//calcPot 计算彩池
-func (c *Holdem) calcPot(urs []*Agent) []*Pot {
+//calcPot 计算彩池(彩池边池，下注大小从小到大)
+func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
 	mainPot := 0
 	u := c.button
 	as := make([]*Agent, 0)
@@ -118,8 +115,8 @@ func (c *Holdem) calcPot(urs []*Agent) []*Pot {
 		as = append(as, r)
 		users[r.gameInfo.seatNumber] = r
 	}
-	ps := potSort(as)
-	sort.Sort(ps)
+	ps := betSort(as)
+	sortedBet := ps.GroupBet()
 	for {
 		//不是最终玩家
 		if _, ok := users[u.gameInfo.seatNumber]; !ok {
@@ -143,17 +140,17 @@ func (c *Holdem) calcPot(urs []*Agent) []*Pot {
 	lastAllIn := 0
 	for i, r := range ps {
 		if r.gameInfo.status == ActionDefAllIn {
-			ss := make(map[int8]bool)
-			for k, v := range seats {
-				ss[k] = v
-			}
 			pot := &Pot{
-				SeatNumber: ss,
-				Num:        l * (r.gameInfo.handBet - lastAllIn),
+				Num: l * (r.gameInfo.handBet - lastAllIn),
 			}
 			if i == 0 {
 				pot.Num += mainPot
 			}
+			ss := make(map[int8]bool)
+			for k, v := range seats {
+				ss[k] = v
+			}
+			pot.SeatNumber = ss
 			pots = append(pots, pot)
 			l--
 			lastAllIn = r.gameInfo.handBet
@@ -168,7 +165,7 @@ func (c *Holdem) calcPot(urs []*Agent) []*Pot {
 			Num:        mainPot,
 		})
 	}
-	return pots
+	return pots, sortedBet
 }
 
 type Pot struct {
