@@ -7,6 +7,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type UserOut struct {
+	Card        *Card
+	HandValue   *HandValue
+	CardResults []*CardResult
+}
+
 func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 	c.log.Debug(round.String() + " buy insurance begin")
 	cardsMap := make(map[int8][]*Card)
@@ -29,10 +35,37 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 			u.recv.PlayerCanNotBuyInsurance(u.gameInfo.seatNumber, out.Len, round)
 			continue
 		}
+		userOuts := make(map[int8][]*UserOut)
+		for seat, hvs := range o.Detail {
+			userOuts[seat] = make([]*UserOut, 0)
+			for cd, hv := range hvs {
+				cds := append(c.publicCards, u.gameInfo.cards...)
+				cds = append(cds, cd)
+				mp := hv.TaggingCards(cds)
+				cr := make([]*CardResult, 0)
+				for i := range cds {
+					cr = append(cr, &CardResult{
+						Card:     cds[i],
+						Selected: mp[i],
+					})
+				}
+				userOuts[seat] = append(userOuts[seat], &UserOut{
+					Card:        cd,
+					HandValue:   hv,
+					CardResults: cr,
+				})
+			}
+		}
 		grp.Go(func() error {
-			r := u.waitBuyInsurance(o.Len, odds, o.Detail, round, c.insuranceWaitTimeout)
+			r, buy := u.waitBuyInsurance(o.Len, odds, userOuts, round, c.insuranceWaitTimeout)
 			if r != nil {
 				ch <- r
+			}
+			u.recv.PlayerBuyInsuranceSuccess(u.gameInfo.seatNumber, buy)
+			for rr := range c.roomers {
+				if rr != u {
+					rr.recv.RoomerGetBuyInsurance(u.gameInfo.seatNumber, buy, round)
+				}
 			}
 			return nil
 		})

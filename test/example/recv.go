@@ -121,6 +121,10 @@ func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, n
 	}
 }
 
+func (c *rec) RoomerGetBuyInsurance(seat int8, buy []*holdem.BuyInsurance, round holdem.Round) {
+
+}
+
 //RoomerGetResult 接收牌局结果
 func (c *rec) RoomerGetResult(rs []*holdem.Result) {
 	b, _ := json.Marshal(rs)
@@ -189,11 +193,20 @@ func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
 	}
 }
 
+//PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注))
+func (c *rec) PlayerActionSuccess(int8, int8, holdem.ActionDef, int) {
+
+}
+
+func (c *rec) PlayerBuyInsuranceSuccess(seat int8, amount []*holdem.BuyInsurance) {
+
+}
+
 func (c *rec) PlayerCanNotBuyInsurance(seat int8, outsLen int, round holdem.Round) {
 
 }
 
-func (c *rec) PlayerCanBuyInsurance(seat int8, outsLen int, odds float64, outs map[int8]map[*holdem.Card]*holdem.HandValue, round holdem.Round) {
+func (c *rec) PlayerCanBuyInsurance(seat int8, outsLen int, odds float64, outs map[int8][]*holdem.UserOut, round holdem.Round) {
 
 }
 

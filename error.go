@@ -12,6 +12,7 @@ const (
 	ErrCodeNotPlaying
 	ErrCodeNoJoin
 	ErrCodeNoSeat
+	ErrCodeInvalidInsurance
 )
 
 var (
@@ -24,4 +25,5 @@ var (
 	errNotPlaying       = errors.New("you are not playing")
 	errNoJoin           = errors.New("no game join")
 	errNoSeat           = errors.New("not seated")
+	errInvalidInsurance = errors.New("invalid insurance amount")
 )

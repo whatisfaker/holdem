@@ -232,20 +232,21 @@ func (c *Agent) enableBuyInsurance(enable bool) {
 	}
 }
 
-func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8]map[*Card]*HandValue, round Round, timeout time.Duration) *InsuranceResult {
+func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*UserOut, round Round, timeout time.Duration) (*InsuranceResult, []*BuyInsurance) {
 	c.enableBuyInsurance(true)
 	c.insuranceCh = make(chan []*BuyInsurance, 1)
 	c.gameInfo.insurance = make(map[int8]*BuyInsurance)
 	timer := time.NewTimer(timeout)
+	amount := 0
 	defer func() {
 		c.enableBuyInsurance(false)
 		close(c.insuranceCh)
 		timer.Stop()
-		//c.log.Debug("buy insurance end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.String("round", round.String()))
+		c.log.Debug("buy insurance end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", amount), zap.String("round", round.String()))
 	}()
 	//稍微延迟告诉客户端可以下注
 	time.AfterFunc(200*time.Millisecond, func() {
-		c.log.Debug("wait bet", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
+		c.log.Debug("wait buy insurance", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
 		c.recv.PlayerCanBuyInsurance(c.gameInfo.seatNumber, outsLen, odds, outs, round)
 	})
 	//循环如果投注错误,还可以让客户重新投注直到超时
@@ -253,21 +254,26 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8]map[*C
 		select {
 		case is, ok := <-c.insuranceCh:
 			if !ok {
-				return nil
+				return nil, nil
 			}
 			cost := 0
 			for _, v := range is {
 				c.gameInfo.insurance[v.Card.Value()] = v
 				cost += v.Num
 			}
+			if cost < c.gameInfo.chip {
+				c.recv.ErrorOccur(ErrCodeInvalidInsurance, errInvalidInsurance)
+				continue
+			}
+			amount = cost
 			return &InsuranceResult{
 				SeatNumber: c.gameInfo.seatNumber,
 				Round:      round,
 				Cost:       cost,
 				Outs:       outsLen,
-			}
+			}, is
 		case <-timer.C:
-			return nil
+			return nil, nil
 		}
 	}
 }

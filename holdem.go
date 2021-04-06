@@ -316,6 +316,7 @@ func (c *Holdem) preflop() ([]*Agent, bool) {
 			c.log.Error("incorrect action", zap.String("action", bet.Action.String()))
 			panic("incorrect action")
 		}
+		u.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, u.gameInfo.seatNumber, bet.Action, bet.Num)
 		for r := range c.roomers {
 			if r != u {
 				r.recv.RoomerGetAction(c.button.gameInfo.seatNumber, u.gameInfo.seatNumber, bet.Action, bet.Num)
