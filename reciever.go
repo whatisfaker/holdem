@@ -37,6 +37,8 @@ type Reciever interface {
 	PlayerSeatedSuccess(int8, PlayType)
 	//PlayerCanPayToPlay 玩家可以补盲了
 	PlayerCanPayToPlay(int8)
+	//PlayerPayToPlaySuccesss 玩家补盲成功
+	PlayerPayToPlaySuccesss(int8)
 	//PlayerReadyStandUpSuccess 玩家准备站起成功
 	PlayerReadyStandUpSuccess(int8)
 	//PlayerStandUp 玩家站起

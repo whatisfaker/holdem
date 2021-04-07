@@ -86,6 +86,8 @@ func NewHoldem(
 	nextGame func(uint) (bool, time.Duration), //是否继续下一手判断/等待时间
 	isPayToPlay bool, //是否需要补盲
 	insurance bool, //保险
+	insuranceOdds map[int]float64,
+	insuranceWaitTimeout time.Duration,
 	log *zap.Logger, //日志
 ) *Holdem {
 	if nextGame == nil {
@@ -99,21 +101,23 @@ func NewHoldem(
 		payMap[i] = PlayTypeNormal
 	}
 	return &Holdem{
-		poker:          NewPoker(),
-		players:        make(map[int8]*Agent),
-		roomers:        make(map[*Agent]bool),
-		publicCards:    make([]*Card, 0, 5),
-		waitBetTimeout: waitBetTimeout,
-		seatCount:      sc,
-		autoStart:      autoStart,
-		minPlayers:     minPlayers,
-		sb:             sb,
-		ante:           ante,
-		log:            log,
-		insurance:      insurance,
-		nextGame:       nextGame,
-		isPayToPlay:    isPayToPlay,
-		payToPlayMap:   payMap,
+		poker:                NewPoker(),
+		players:              make(map[int8]*Agent),
+		roomers:              make(map[*Agent]bool),
+		publicCards:          make([]*Card, 0, 5),
+		waitBetTimeout:       waitBetTimeout,
+		seatCount:            sc,
+		autoStart:            autoStart,
+		minPlayers:           minPlayers,
+		sb:                   sb,
+		ante:                 ante,
+		log:                  log,
+		insurance:            insurance,
+		insuranceOdds:        insuranceOdds,
+		insuranceWaitTimeout: insuranceWaitTimeout,
+		nextGame:             nextGame,
+		isPayToPlay:          isPayToPlay,
+		payToPlayMap:         payMap,
 	}
 }
 
@@ -286,8 +290,12 @@ func (c *Holdem) doAnte() {
 		if u.gameInfo.chip >= c.ante {
 			c.pot += c.ante
 			u.gameInfo.chip -= c.ante
-			u.gameInfo.status = ActionDefNone
+			u.gameInfo.status = ActionDefAnte
 			c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.ante))
+			u = u.nextAgent
+			if u == c.button {
+				break
+			}
 			continue
 		}
 		c.handStartInfo.AnteAllIns = append(c.handStartInfo.AnteAllIns, u.gameInfo.seatNumber)
@@ -551,8 +559,8 @@ func (c *Holdem) checkRoundComplete() (bool, []*Agent, bool) {
 	allInCount := 0
 	hasCheck := false
 	for {
-		//已盖牌跳过
-		if u.gameInfo.status == ActionDefFold {
+		//已盖牌/未发牌用户跳过
+		if u.gameInfo.status == ActionDefFold || u.gameInfo.status == ActionDefNone {
 			u = u.nextAgent
 			if u == c.button {
 				break
@@ -591,15 +599,20 @@ func (c *Holdem) checkRoundComplete() (bool, []*Agent, bool) {
 }
 
 func (c *Holdem) getNextOperator(u *Agent) *Agent {
+	first := u
 	u = u.nextAgent
 	for {
-		if u.gameInfo.te == PlayTypeDisable || u.gameInfo.te == PlayTypeNeedPayToPlay {
+		//已经离开
+		if u.gameInfo == nil {
 			u = u.nextAgent
 		}
-		if u.gameInfo.status == ActionDefFold || u.gameInfo.status == ActionDefAllIn {
+		if u.gameInfo.status == ActionDefNone || u.gameInfo.status == ActionDefFold || u.gameInfo.status == ActionDefAllIn {
 			u = u.nextAgent
 		} else {
 			return u
+		}
+		if u == first {
+			return nil
 		}
 	}
 }

@@ -35,6 +35,7 @@ type ActionDef int8
 
 const (
 	ActionDefNone ActionDef = iota
+	ActionDefAnte
 	ActionDefSB
 	ActionDefBB
 	ActionDefBet
@@ -195,6 +196,26 @@ func (c *Agent) Bet(bet *Bet) {
 		return
 	}
 	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
+}
+
+//PayToPlay 补盲
+func (c *Agent) PayToPlay() {
+	if c.gameInfo == nil {
+		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber <= 0 {
+		c.ErrorOccur(ErrCodeNoSeat, errNoSeat)
+		return
+	}
+	if c.gameInfo.te == PlayTypeDisable {
+		c.ErrorOccur(ErrCodeCannotEnablePayToPlay, errCannotEnablePayToPlay)
+		return
+	}
+	if c.gameInfo.te == PlayTypeNeedPayToPlay {
+		c.gameInfo.te = PlayTypeAgreePayToPlay
+	}
+	c.recv.PlayerPayToPlaySuccesss(c.gameInfo.seatNumber)
 }
 
 func (c *Agent) canBet() bool {

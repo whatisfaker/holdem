@@ -207,6 +207,10 @@ func (c *rec) PlayerCanPayToPlay(int8) {
 
 }
 
+func (c *rec) PlayerPayToPlaySuccesss(int8) {
+
+}
+
 func (c *rec) PlayerSeatedSuccess(seat int8, payToPlay holdem.PlayType) {
 	c.ch <- &ServerAction{
 		Action: SASelfSeated,

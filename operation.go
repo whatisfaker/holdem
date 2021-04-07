@@ -18,6 +18,9 @@ type Operator struct {
 }
 
 func NewOperator(r *Agent, bet int, minRaise int) *Operator {
+	if r == nil {
+		return nil
+	}
 	return &Operator{
 		SeatNumber:      r.gameInfo.seatNumber,
 		Chip:            r.gameInfo.chip,

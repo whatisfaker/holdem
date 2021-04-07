@@ -13,17 +13,19 @@ const (
 	ErrCodeNoJoin
 	ErrCodeNoSeat
 	ErrCodeInvalidInsurance
+	ErrCodeCannotEnablePayToPlay
 )
 
 var (
-	errLessChip         = errors.New("chip is less than 0")
-	errNotInBetTime     = errors.New("it is not in bet time")
-	errSeatTaken        = errors.New("the seat is token by other player")
-	errNoChip           = errors.New("you have less chip")
-	errInvalidBetAction = errors.New("invalid bet action")
-	errInvalidBetNum    = errors.New("invalid bet amount")
-	errNotPlaying       = errors.New("you are not playing")
-	errNoJoin           = errors.New("no game join")
-	errNoSeat           = errors.New("not seated")
-	errInvalidInsurance = errors.New("invalid insurance amount")
+	errLessChip              = errors.New("chip is less than 0")
+	errNotInBetTime          = errors.New("it is not in bet time")
+	errSeatTaken             = errors.New("the seat is token by other player")
+	errNoChip                = errors.New("you have less chip")
+	errInvalidBetAction      = errors.New("invalid bet action")
+	errInvalidBetNum         = errors.New("invalid bet amount")
+	errNotPlaying            = errors.New("you are not playing")
+	errNoJoin                = errors.New("no game join")
+	errNoSeat                = errors.New("not seated")
+	errInvalidInsurance      = errors.New("invalid insurance amount")
+	errCannotEnablePayToPlay = errors.New("you can't pay to play")
 )
