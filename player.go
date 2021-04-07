@@ -13,6 +13,7 @@ type GameInfo struct {
 	needStandUp bool //需要离开
 	roundBet    int
 	handBet     int
+	bringIn     int
 	chip        int
 	cards       []*Card
 	handValue   *HandValue

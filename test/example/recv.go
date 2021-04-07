@@ -82,7 +82,7 @@ func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo) {
 }
 
 //RoomerGetCard 接收有人收到牌（位置,牌数量)
-func (c *rec) RoomerGetCard(a []int8, num int8) {
+func (c *rec) RoomerGetCard(a []int8, num int8, op *holdem.Operator) {
 	mp := make(map[string]interface{})
 	mp["order"] = a
 	mp["num"] = num
@@ -94,11 +94,24 @@ func (c *rec) RoomerGetCard(a []int8, num int8) {
 }
 
 //RoomerGetPublicCard 接收公共牌
-func (c *rec) RoomerGetPublicCard(cds []*holdem.Card) {
+func (c *rec) RoomerGetPublicCard(cds []*holdem.Card, op *holdem.Operator, isYourTurn bool) {
 	b, _ := json.Marshal(cds)
 	c.ch <- &ServerAction{
 		Action:  SAGetPCards,
 		Payload: b,
+	}
+	if isYourTurn {
+		c.ch <- &ServerAction{
+			Action: SACanBet,
+			Seat:   op.SeatNumber,
+			BetInfo: &BetInfo{
+				Chip:       op.Chip,
+				HandBet:    op.HandBet,
+				RoundBet:   op.RoundBet,
+				CurrentBet: op.CurrentTableBet,
+				MinRaise:   op.MinRaise,
+			},
+		}
 	}
 }
 
@@ -112,12 +125,25 @@ func (c *rec) RoomerGetShowCards(cds []*holdem.ShowCard) {
 }
 
 //RoomerGetAction 接收有人动作（位置，动作，金额(如果下注))
-func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, num int) {
+func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, num int, op *holdem.Operator, isYourTurn bool) {
 	c.ch <- &ServerAction{
 		Action:  SAAction,
 		Action2: action,
 		Seat:    seat,
 		Num:     num,
+	}
+	if isYourTurn {
+		c.ch <- &ServerAction{
+			Action: SACanBet,
+			Seat:   op.SeatNumber,
+			BetInfo: &BetInfo{
+				Chip:       op.Chip,
+				HandBet:    op.HandBet,
+				RoundBet:   op.RoundBet,
+				CurrentBet: op.CurrentTableBet,
+				MinRaise:   op.MinRaise,
+			},
+		}
 	}
 }
 
@@ -135,7 +161,7 @@ func (c *rec) RoomerGetResult(rs []*holdem.Result) {
 }
 
 //PlayerGetCard 玩家获得自己发到的牌
-func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int8) {
+func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int8, op *holdem.Operator, isYourTurn bool) {
 	mp := make(map[string]interface{})
 	mp["cards"] = cds
 	mp["order"] = seats
@@ -145,6 +171,19 @@ func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int
 		Action:  SAGetMyCards,
 		Payload: b,
 	}
+	if isYourTurn {
+		c.ch <- &ServerAction{
+			Action: SACanBet,
+			Seat:   op.SeatNumber,
+			BetInfo: &BetInfo{
+				Chip:       op.Chip,
+				HandBet:    op.HandBet,
+				RoundBet:   op.RoundBet,
+				CurrentBet: op.CurrentTableBet,
+				MinRaise:   op.MinRaise,
+			},
+		}
+	}
 }
 
 func (c *rec) ErrorOccur(code int, err error) {
@@ -153,21 +192,6 @@ func (c *rec) ErrorOccur(code int, err error) {
 		Action:  SAError,
 		Num:     code,
 		Payload: []byte(err.Error()),
-	}
-}
-
-//PlayerCanBet 玩家可以开始下注
-func (c *rec) PlayerCanBet(seat int8, chip int, handBet int, roundBet int, curBet int, minBet int, round holdem.Round) {
-	c.ch <- &ServerAction{
-		Action: SACanBet,
-		Seat:   seat,
-		BetInfo: &BetInfo{
-			Chip:       chip,
-			HandBet:    handBet,
-			RoundBet:   roundBet,
-			CurrentBet: curBet,
-			MinRaise:   minBet,
-		},
 	}
 }
 
@@ -194,7 +218,7 @@ func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
 }
 
 //PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注))
-func (c *rec) PlayerActionSuccess(int8, int8, holdem.ActionDef, int) {
+func (c *rec) PlayerActionSuccess(int8, int8, holdem.ActionDef, int, *holdem.Operator) {
 
 }
 

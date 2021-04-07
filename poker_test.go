@@ -2,6 +2,7 @@ package holdem
 
 import (
 	"testing"
+	"time"
 
 	"gopkg.in/stretchr/testify.v1/assert"
 )
@@ -293,12 +294,43 @@ func TestGetOuts(t *testing.T) {
 	}
 }
 
+type TestAd struct {
+	Num int
+}
+
 func TestGoRoutine(t *testing.T) {
-	a := make(chan int, 10)
-	a <- 1
-	a <- 2
-	close(a)
-	for c := range a {
-		t.Log(c)
+	a := []*TestAd{
+		{
+			Num: 1,
+		},
+		{
+			Num: 2,
+		},
+
+		{
+			Num: 3,
+		},
 	}
+	i := 0
+	var u *TestAd
+	u = a[i]
+	for u != nil {
+		t.Log(u.Num)
+		i++
+		var next *TestAd
+		if i <= 2 {
+			next = a[i]
+		}
+		this := u
+		time.AfterFunc(2*time.Second, func() {
+			if next != nil {
+				t.Log(this.Num, next.Num)
+			} else {
+				t.Log(this.Num, "null")
+			}
+		})
+		u = next
+	}
+	c := time.After(10 * time.Second)
+	<-c
 }

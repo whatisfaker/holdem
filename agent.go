@@ -101,6 +101,10 @@ type InsuranceResult struct {
 	Round Round
 }
 
+func (c *Agent) Next() *Agent {
+	return c.nextAgent
+}
+
 func (c *Agent) ErrorOccur(a int, e error) {
 	c.recv.ErrorOccur(a, e)
 }
@@ -149,10 +153,16 @@ func (c *Agent) BringIn(chip int) {
 		c.ErrorOccur(ErrCodeLessChip, errLessChip)
 		return
 	}
-	c.gameInfo = &GameInfo{
-		chip: chip,
+	if c.gameInfo != nil {
+		c.gameInfo.bringIn += chip
+		c.gameInfo.chip += chip
+	} else {
+		c.gameInfo = &GameInfo{
+			chip:    chip,
+			bringIn: chip,
+		}
 	}
-	c.recv.PlayerBringInSuccess(0, chip)
+	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, chip)
 }
 
 //Seated 坐下
@@ -329,11 +339,6 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 		timer.Stop()
 		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.String("round", round.String()))
 	}()
-	//稍微延迟告诉客户端可以下注
-	time.AfterFunc(200*time.Millisecond, func() {
-		c.log.Debug("wait bet", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
-		c.recv.PlayerCanBet(c.gameInfo.seatNumber, c.gameInfo.chip, c.gameInfo.handBet, c.gameInfo.roundBet, curBet, minBet, round)
-	})
 	//循环如果投注错误,还可以让客户重新投注直到超时
 	for {
 		select {
