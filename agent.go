@@ -101,10 +101,6 @@ type InsuranceResult struct {
 	Round Round
 }
 
-func (c *Agent) Next() *Agent {
-	return c.nextAgent
-}
-
 func (c *Agent) ErrorOccur(a int, e error) {
 	c.recv.ErrorOccur(a, e)
 }

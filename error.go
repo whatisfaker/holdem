@@ -19,7 +19,7 @@ var (
 	errLessChip         = errors.New("chip is less than 0")
 	errNotInBetTime     = errors.New("it is not in bet time")
 	errSeatTaken        = errors.New("the seat is token by other player")
-	errNoChip           = errors.New("you have bring in first")
+	errNoChip           = errors.New("you have less chip")
 	errInvalidBetAction = errors.New("invalid bet action")
 	errInvalidBetNum    = errors.New("invalid bet amount")
 	errNotPlaying       = errors.New("you are not playing")

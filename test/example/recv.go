@@ -47,7 +47,7 @@ type rec struct {
 var _ holdem.Reciever = (*rec)(nil)
 
 //RoomerSeated 接收有人坐下
-func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo) {
+func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo, payToPlay holdem.PlayType) {
 	c.ch <- &ServerAction{
 		Action: SASeated,
 		Seat:   seat,
@@ -82,7 +82,7 @@ func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo) {
 }
 
 //RoomerGetCard 接收有人收到牌（位置,牌数量)
-func (c *rec) RoomerGetCard(a []int8, num int8, op *holdem.Operator) {
+func (c *rec) RoomerGetCard(a []int8, num int8, info *holdem.StartNewHandInfo, op *holdem.Operator) {
 	mp := make(map[string]interface{})
 	mp["order"] = a
 	mp["num"] = num
@@ -161,7 +161,7 @@ func (c *rec) RoomerGetResult(rs []*holdem.Result) {
 }
 
 //PlayerGetCard 玩家获得自己发到的牌
-func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int8, op *holdem.Operator, isYourTurn bool) {
+func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int8, info *holdem.StartNewHandInfo, op *holdem.Operator, isYourTurn bool) {
 	mp := make(map[string]interface{})
 	mp["cards"] = cds
 	mp["order"] = seats
@@ -203,7 +203,11 @@ func (c *rec) PlayerBringInSuccess(seat int8, chip int) {
 	}
 }
 
-func (c *rec) PlayerSeatedSuccess(seat int8) {
+func (c *rec) PlayerCanPayToPlay(int8) {
+
+}
+
+func (c *rec) PlayerSeatedSuccess(seat int8, payToPlay holdem.PlayType) {
 	c.ch <- &ServerAction{
 		Action: SASelfSeated,
 		Seat:   seat,

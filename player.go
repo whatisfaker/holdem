@@ -1,5 +1,14 @@
 package holdem
 
+type PlayType int8
+
+const (
+	PlayTypeNormal         PlayType = iota //正常
+	PlayTypeNeedPayToPlay                  //需要补盲
+	PlayTypeAgreePayToPlay                 //同意补盲
+	PlayTypeDisable                        //不能打牌
+)
+
 type UserInfo interface {
 	ID() string
 	Name() string
@@ -14,6 +23,7 @@ type GameInfo struct {
 	roundBet    int
 	handBet     int
 	bringIn     int
+	te          PlayType
 	chip        int
 	cards       []*Card
 	handValue   *HandValue
