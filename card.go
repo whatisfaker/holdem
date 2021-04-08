@@ -159,16 +159,16 @@ func (c *HandValue) HasCards(nc ...*Card) bool {
 
 //TaggingCards 标记牌
 func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
-	ret := make(map[*Card]bool)
+	ret := make(map[int8]bool)
 	for _, v := range nc {
-		ret[v] = false
+		ret[v.Value()] = false
 	}
 	for _, v := range c.cards {
-		ret[v] = true
+		ret[v.Value()] = true
 	}
 	ret2 := make(map[int]bool)
 	for i, v := range nc {
-		ret2[i] = ret[v]
+		ret2[i] = ret[v.Value()]
 	}
 	return ret2
 }

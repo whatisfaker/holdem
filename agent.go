@@ -277,7 +277,7 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 	}()
 	//稍微延迟告诉客户端可以下注
 	time.AfterFunc(200*time.Millisecond, func() {
-		c.log.Debug("wait buy insurance", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()))
+		c.log.Debug("wait buy insurance", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()), zap.Int("outslen", outsLen))
 		c.recv.PlayerCanBuyInsurance(c.gameInfo.seatNumber, outsLen, odds, outs, round)
 	})
 	//循环如果投注错误,还可以让客户重新投注直到超时
