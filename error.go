@@ -14,6 +14,7 @@ const (
 	ErrCodeNoSeat
 	ErrCodeInvalidInsurance
 	ErrCodeCannotEnablePayToPlay
+	ErrCodeNotStandUp
 )
 
 var (
@@ -28,4 +29,5 @@ var (
 	errNoSeat                = errors.New("not seated")
 	errInvalidInsurance      = errors.New("invalid insurance amount")
 	errCannotEnablePayToPlay = errors.New("you can't pay to play")
+	errNotStandUp            = errors.New("you didnt leave table")
 )

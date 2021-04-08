@@ -18,6 +18,7 @@ type ShowUser struct {
 }
 
 type Agent struct {
+	invalid           bool
 	user              UserInfo
 	log               *zap.Logger
 	recv              Reciever
@@ -86,6 +87,8 @@ type Bet struct {
 	Action ActionDef
 	//Num 这次投入的数量
 	Num int
+	//Auto
+	Auto bool
 }
 
 type BuyInsurance struct {
@@ -140,8 +143,29 @@ func (c *Agent) ShowUser() *ShowUser {
 
 //Join 加入游戏
 func (c *Agent) Join(holdem *Holdem) {
+	if c.h == holdem {
+		return
+	}
 	holdem.join(c)
 	c.h = holdem
+	c.gameInfo = nil
+}
+
+//Leave 离开
+func (c *Agent) Leave(holdem *Holdem) {
+	if c.h == nil {
+		return
+	}
+	if c.gameInfo != nil {
+		c.ErrorOccur(ErrCodeNotStandUp, errNotStandUp)
+		return
+	}
+	holdem.leave(c)
+	c.h = nil
+}
+
+func (c *Agent) Invalid(b bool) {
+	c.invalid = b
 }
 
 //BringIn 带入筹码
@@ -358,7 +382,7 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 		c.enableBet(false)
 		close(c.betCh)
 		timer.Stop()
-		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.String("round", round.String()))
+		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.Bool("auto", rbet.Auto), zap.String("round", round.String()))
 	}()
 	//循环如果投注错误,还可以让客户重新投注直到超时
 	for {
@@ -380,6 +404,7 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 			c.gameInfo.status = ActionDefFold
 			rbet = &Bet{
 				Action: ActionDefFold,
+				Auto:   true,
 			}
 			return
 		}

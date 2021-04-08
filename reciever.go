@@ -3,8 +3,10 @@ package holdem
 type Reciever interface {
 	//ErrorOccur 接收错误
 	ErrorOccur(int, error)
-	//RoomerGameInformation 接收游戏信息
-	RoomerGameInformation(*Holdem)
+	//RoomerJoin 接收有人进入游戏
+	RoomerJoin(UserInfo)
+	//RoomerLeave 接收有人离开游戏
+	RoomerLeave(UserInfo)
 	//RoomerSeated 接收有人坐下
 	RoomerSeated(int8, UserInfo, PlayType)
 	//RoomerRoomerStandUp
@@ -21,6 +23,8 @@ type Reciever interface {
 	RoomerGetShowCards([]*ShowCard)
 	//RoomerGetResult 接收牌局结果
 	RoomerGetResult([]*Result)
+	//RoomerKeepSeat 接收有人占座(座位号)
+	RoomerKeepSeat(int8)
 	//PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注),下一个操作者)
 	PlayerActionSuccess(int8, int8, ActionDef, int, *Operator)
 	//PlayerGetCard 玩家获得自己发到的牌（座位号,牌,发牌顺序,几张牌,下一个操作者是否是你)
@@ -33,6 +37,10 @@ type Reciever interface {
 	PlayerBuyInsuranceSuccess(seat int8, buy []*BuyInsurance)
 	//PlayerBringInSuccess 玩家带入成功
 	PlayerBringInSuccess(seat int8, chip int)
+	//PlayerJoinSuccess 玩家进入游戏成功
+	PlayerJoinSuccess(UserInfo, *Holdem)
+	//PlayerLeaveSuccess 玩家离开游戏成功
+	PlayerLeaveSuccess(UserInfo)
 	//PlayerSeatedSuccess 玩家坐下成功(补盲状态)
 	PlayerSeatedSuccess(int8, PlayType)
 	//PlayerCanPayToPlay 玩家可以补盲了
@@ -43,4 +51,6 @@ type Reciever interface {
 	PlayerReadyStandUpSuccess(int8)
 	//PlayerStandUp 玩家站起
 	PlayerStandUp(int8)
+	//PlayerKeepSeat 玩家占座(座位号)
+	PlayerKeepSeat(int8)
 }

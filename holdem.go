@@ -1,6 +1,7 @@
 package holdem
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -57,7 +58,6 @@ type Holdem struct {
 	waitBetTimeout       time.Duration                       //等待下注的超时时间
 	seatLock             sync.Mutex                          //玩家锁
 	isStarted            bool                                //是否开始
-	isPlaying            bool                                //是否在游戏中
 	handStartInfo        *StartNewHandInfo                   //当前一手开局信息
 	sb                   int                                 //小盲
 	ante                 int                                 //前注
@@ -74,6 +74,7 @@ type Holdem struct {
 	insuranceWaitTimeout time.Duration                       //保险等待时间
 	insuranceResult      map[int8]map[Round]*InsuranceResult //保险结果
 	insuranceUsers       []*Agent                            //参与保险的玩家
+	delayStandUpTimeout  time.Duration                       //延迟站起来时间
 }
 
 func NewHoldem(
@@ -88,6 +89,7 @@ func NewHoldem(
 	insurance bool, //保险
 	insuranceOdds map[int]float64,
 	insuranceWaitTimeout time.Duration,
+	delayStandUpTimeout time.Duration,
 	log *zap.Logger, //日志
 ) *Holdem {
 	if nextGame == nil {
@@ -122,12 +124,28 @@ func NewHoldem(
 }
 
 //Join 加入游戏,并没有坐下
-func (c *Holdem) join(rs ...*Agent) {
+func (c *Holdem) join(rs *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	for _, r := range rs {
-		c.roomers[r] = true
-		r.recv.RoomerGameInformation(c)
+	for r := range c.roomers {
+		if r != rs {
+			r.recv.RoomerJoin(rs.user)
+		}
+	}
+	c.roomers[rs] = true
+	rs.recv.PlayerJoinSuccess(rs.user, c)
+}
+
+//leave 离开
+func (c *Holdem) leave(rs *Agent) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	delete(c.roomers, rs)
+	rs.recv.PlayerLeaveSuccess(rs.user)
+	for r := range c.roomers {
+		if r != rs {
+			r.recv.RoomerLeave(rs.user)
+		}
 	}
 }
 
@@ -136,7 +154,7 @@ func (c *Holdem) seated(i int8, r *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
 	if c.players[i] != nil {
-		r.ErrorOccur(ErrCodeSeatTaken, errSeatTaken)
+		r.ErrorOccur(ErrCodeSeatTaken, fmt.Errorf("error seat %d", i))
 		return
 	}
 	if r.gameInfo == nil || r.gameInfo.chip < c.ante+c.sb*2 {
@@ -172,6 +190,30 @@ func (c *Holdem) directStandUp(i int8, r *Agent) {
 	defer c.seatLock.Unlock()
 	c.log.Debug("user direct stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
 	c.standUp(i, r)
+}
+
+func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration) {
+	c.log.Debug("less chip auto stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()), zap.Duration("dur", tm))
+	r.recv.PlayerKeepSeat(i)
+	for rr := range c.roomers {
+		if rr != r {
+			rr.recv.RoomerKeepSeat(i)
+		}
+	}
+	time.AfterFunc(tm, func() {
+		//去了其他游戏
+		if r.h != c {
+			return
+		}
+		//已经自行站起来
+		if r.gameInfo == nil {
+			return
+		}
+		//还是空筹码
+		if r.gameInfo.chip == 0 && r.gameInfo.seatNumber == i {
+			c.standUp(i, r)
+		}
+	})
 }
 
 //standUp 站起来
@@ -242,6 +284,10 @@ func (c *Holdem) buttonPosition() bool {
 		seat := ((i + buIdx - 1) % c.seatCount) + 1
 		payMap[seat] = PlayTypeNeedPayToPlay
 		if p, ok := c.players[seat]; ok {
+			//无筹码留座的直接跳过
+			if p.gameInfo.chip == 0 {
+				continue
+			}
 			playerCount++
 			//不需要补盲
 			if !c.isPayToPlay {
@@ -267,7 +313,7 @@ func (c *Holdem) buttonPosition() bool {
 		}
 	}
 	if playerCount <= 1 {
-		c.log.Debug("button position end(false)", zap.Int8("seat count", playerCount), zap.Int8("pc", c.playingPlayerCount))
+		c.log.Debug("button position end(false)", zap.Int8("valid seat count", playerCount), zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 		return false
 	}
 	cur.nextAgent = newButton
@@ -913,15 +959,13 @@ func (c *Holdem) Wait() {
 		if !ok {
 			c.log.Debug("players are not enough, wait")
 		} else {
-			c.isPlaying = true
 			c.startHand()
 			//清理座位用户
 			c.seatLock.Lock()
 			for i, r := range c.players {
 				r.gameInfo.ResetForNextHand()
 				if r.gameInfo.chip == 0 {
-					c.log.Debug("less chip auto stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
-					c.standUp(i, r)
+					c.delayStandUp(i, r, c.delayStandUpTimeout)
 					continue
 				}
 				if r.gameInfo.needStandUp {
@@ -929,7 +973,6 @@ func (c *Holdem) Wait() {
 					c.standUp(i, r)
 				}
 			}
-			c.isPlaying = false
 			c.seatLock.Unlock()
 		}
 		next, wait := c.nextGame(c.handNum)

@@ -54,7 +54,7 @@ func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo, payToPlay holdem.PlayTy
 	}
 }
 
-func (c *rec) RoomerGameInformation(h *holdem.Holdem) {
+func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.Holdem) {
 	_, _, _, _, seatCount, players, _ := h.Information()
 	seats := make([]int, 0)
 	mp := make(map[int8]bool)
@@ -235,6 +235,28 @@ func (c *rec) PlayerActionSuccess(bs int8, s int8, act holdem.ActionDef, num int
 	}
 }
 
+func (c *rec) PlayerKeepSeat(int8) {
+
+}
+
+//RoomerJoin 接收有人进入游戏
+func (c *rec) RoomerJoin(holdem.UserInfo) {
+
+}
+
+//RoomerLeave 接收有人离开游戏
+func (c *rec) RoomerLeave(holdem.UserInfo) {
+
+}
+
+//PlayerLeavSuccesse 接收有人离开游戏
+func (c *rec) PlayerLeaveSuccess(holdem.UserInfo) {
+
+}
+
+func (c *rec) RoomerKeepSeat(int8) {
+
+}
 func (c *rec) PlayerBuyInsuranceSuccess(seat int8, amount []*holdem.BuyInsurance) {
 
 }
