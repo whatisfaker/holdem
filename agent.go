@@ -29,6 +29,8 @@ type Agent struct {
 	atomInsuranceLock int32
 	showUser          *ShowUser
 	nextAgent         *Agent
+	prevAgent         *Agent
+	fake              bool
 }
 
 type ActionDef int8
@@ -48,6 +50,8 @@ const (
 
 func (c ActionDef) String() string {
 	switch c {
+	case ActionDefAnte:
+		return "ante"
 	case ActionDefSB:
 		return "small blind"
 	case ActionDefBB:

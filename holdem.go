@@ -170,6 +170,7 @@ func (c *Holdem) seated(i int8, r *Agent) {
 func (c *Holdem) directStandUp(i int8, r *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
+	c.log.Debug("user direct stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
 	c.standUp(i, r)
 }
 
@@ -203,6 +204,21 @@ func (c *Holdem) Information() (ante int, sb int, pot int, publicCards []*Card, 
 	return
 }
 
+func fakeAgent(p *Agent) *Agent {
+	ret := NewAgent(p.recv, p.user, p.log)
+	//状态重置
+	p.gameInfo.status = ActionDefNone
+	ret.gameInfo = p.gameInfo
+	ret.fake = true
+	ret.prevAgent = p.prevAgent
+	ret.nextAgent = p.nextAgent
+	p.prevAgent = nil
+	p.nextAgent = nil
+	ret.prevAgent.nextAgent = ret
+	ret.nextAgent.prevAgent = ret
+	return ret
+}
+
 //buttonPosition 决定按钮位置
 func (c *Holdem) buttonPosition() bool {
 	c.log.Debug("button position begin", zap.Int8("seat count", c.playerCount))
@@ -215,15 +231,18 @@ func (c *Holdem) buttonPosition() bool {
 		//庄位移动
 		buIdx = c.sbSeat
 	}
-	c.handNum++
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
 	c.playingPlayerCount = 0
 	payMap := make(map[int8]PlayType)
+	var newButton *Agent
+	var newButtonSeat int8
+	var playerCount int8
 	for i = 0; i < c.seatCount; i++ {
 		seat := ((i + buIdx - 1) % c.seatCount) + 1
 		payMap[seat] = PlayTypeNeedPayToPlay
 		if p, ok := c.players[seat]; ok {
+			playerCount++
 			//不需要补盲
 			if !c.isPayToPlay {
 				p.gameInfo.te = PlayTypeNormal
@@ -232,8 +251,8 @@ func (c *Holdem) buttonPosition() bool {
 				c.playingPlayerCount++
 			}
 			if cur == nil {
-				c.button = p
-				c.buttonSeat = seat
+				newButton = p
+				newButtonSeat = seat
 				cur = p
 				if p.gameInfo.te == PlayTypeDisable {
 					p.gameInfo.te = PlayTypeNeedPayToPlay
@@ -243,35 +262,62 @@ func (c *Holdem) buttonPosition() bool {
 				continue
 			}
 			cur.nextAgent = p
+			p.prevAgent = cur
 			cur = p
 		}
 	}
-	cur.nextAgent = c.button
-	c.sbSeat = c.button.nextAgent.gameInfo.seatNumber
-	c.bbSeat = c.button.nextAgent.nextAgent.gameInfo.seatNumber
+	if playerCount <= 1 {
+		c.log.Debug("button position end(false)", zap.Int8("seat count", playerCount), zap.Int8("pc", c.playingPlayerCount))
+		return false
+	}
+	cur.nextAgent = newButton
+	newButton.prevAgent = cur
+	newSBSeat := newButton.nextAgent.gameInfo.seatNumber
+	newBBSeat := newButton.nextAgent.nextAgent.gameInfo.seatNumber
 	if c.isPayToPlay {
-		payMap[c.sbSeat] = PlayTypeDisable
-		payMap[c.bbSeat] = PlayTypeDisable
-		if c.button.nextAgent.nextAgent.gameInfo.te == PlayTypeNeedPayToPlay {
-			c.button.nextAgent.nextAgent.gameInfo.te = PlayTypeNormal
+		//BB位可以脱离补盲状态
+		if newButton.nextAgent.nextAgent.gameInfo.te == PlayTypeNeedPayToPlay || newButton.nextAgent.nextAgent.gameInfo.te == PlayTypeDisable {
+			newButton.nextAgent.nextAgent.gameInfo.te = PlayTypeNormal
 			c.playingPlayerCount++
+		}
+		payMap[newSBSeat] = PlayTypeDisable
+		payMap[newBBSeat] = PlayTypeDisable
+		u := newButton
+		//用fakeAgent替换掉坐着但不发牌的人
+		for {
+			if u.gameInfo.te == PlayTypeNeedPayToPlay || u.gameInfo.te == PlayTypeDisable {
+				u2 := fakeAgent(u)
+				if u == newButton {
+					newButton = u2
+				}
+				u = u2
+			}
+			u = u.nextAgent
+			if u == newButton {
+				break
+			}
 		}
 	} else {
 		for k := range payMap {
 			payMap[k] = PlayTypeNormal
 		}
 	}
+	c.button = newButton
+	c.buttonSeat = newButtonSeat
+	c.sbSeat = newSBSeat
+	c.bbSeat = newBBSeat
+	c.payToPlayMap = payMap
 	if c.playingPlayerCount <= 1 {
 		c.log.Debug("button position end(false)", zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 		return false
 	}
-	c.payToPlayMap = payMap
 	c.handStartInfo = &StartNewHandInfo{
 		AnteAllIns: []int8{},
 		PayToPlay:  []int8{},
 		SBSeat:     c.sbSeat,
 		BBSeat:     c.bbSeat,
 	}
+	c.handNum++
 	c.log.Debug("button position end(true)", zap.Int8("buseat", c.buttonSeat), zap.String("buuser", c.button.user.ID()), zap.Int8("players", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 	return true
 }
@@ -413,6 +459,12 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		bet := u.waitBet(c.roundBet, c.minRaise, RoundPreFlop, c.waitBetTimeout)
 		switch bet.Action {
 		case ActionDefFold:
+			//盖牌的直接移除出局
+			u2 := fakeAgent(u)
+			if u == c.button {
+				c.button = u2
+			}
+			u = u2
 		case ActionDefCall:
 			c.pot += bet.Num
 		case ActionDefRaise:
@@ -443,7 +495,6 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 			op = NewOperator(next, c.roundBet, c.minRaise)
 		}
 		thisAgent := u
-
 		//稍微延迟告诉客户端可以下注
 		time.AfterFunc(200*time.Millisecond, func() {
 			thisAgent.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op)
@@ -455,6 +506,8 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		})
 		u = next
 	}
+	//等500ms
+	time.Sleep(500 * time.Millisecond)
 	if showcard {
 		scs := make([]*ShowCard, 0)
 		for _, v := range unfoldUsers {
@@ -488,9 +541,16 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 	}
 	c.log.Debug(round.String()+" bet begin", zap.Int8("pc", c.playingPlayerCount), zap.Int8("sseat", u.gameInfo.seatNumber), zap.String("suser", u.user.ID()))
 	for u != nil {
+		c.log.Debug("wait bet", zap.Int8("seat", u.gameInfo.seatNumber), zap.String("status", u.gameInfo.status.String()), zap.String("round", round.String()))
 		bet := u.waitBet(c.roundBet, c.minRaise, round, c.waitBetTimeout)
 		switch bet.Action {
 		case ActionDefFold:
+			//盖牌的直接移除出局
+			u2 := fakeAgent(u)
+			if u == c.button {
+				c.button = u2
+			}
+			u = u2
 		case ActionDefCheck:
 		case ActionDefBet:
 			c.pot += bet.Num
@@ -535,6 +595,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 		})
 		u = next
 	}
+	time.Sleep(500 * time.Millisecond)
 	//非河牌直接亮牌
 	if round != RoundRiver && showcard {
 		scs := make([]*ShowCard, 0)
@@ -557,10 +618,9 @@ func (c *Holdem) checkRoundComplete() (bool, []*Agent, bool) {
 	u := c.button
 	users := make([]*Agent, 0)
 	allInCount := 0
-	hasCheck := false
 	for {
-		//已盖牌/未发牌用户跳过
-		if u.gameInfo.status == ActionDefFold || u.gameInfo.status == ActionDefNone {
+		//已盖牌/未发牌玩家跳过
+		if u.fake {
 			u = u.nextAgent
 			if u == c.button {
 				break
@@ -582,17 +642,13 @@ func (c *Holdem) checkRoundComplete() (bool, []*Agent, bool) {
 			return false, nil, false
 		}
 		users = append(users, u)
-		//是否包含一个check 用户
-		if u.gameInfo.status == ActionDefCheck {
-			hasCheck = true
-		}
 		u = u.nextAgent
 		if u == c.button {
 			break
 		}
 	}
-	//如果大于一个人check,则未结束
-	if hasCheck && len(users) > 1 {
+	//还没有下注但是玩家大于1,还未结束
+	if c.roundBet == 0 && len(users) > 1 {
 		return false, nil, false
 	}
 	return true, users, allInCount > 0 && len(users) > 1 && allInCount >= len(users)-1
@@ -602,17 +658,17 @@ func (c *Holdem) getNextOperator(u *Agent) *Agent {
 	first := u
 	u = u.nextAgent
 	for {
-		//已经离开
-		if u.gameInfo == nil {
-			u = u.nextAgent
+		if u == first {
+			return nil
 		}
-		if u.gameInfo.status == ActionDefNone || u.gameInfo.status == ActionDefFold || u.gameInfo.status == ActionDefAllIn {
+		//已盖牌/未发牌跳过
+		if u.fake {
+			u = u.nextAgent
+		} else if u.gameInfo.status == ActionDefAllIn {
+			//All In的也跳过
 			u = u.nextAgent
 		} else {
 			return u
-		}
-		if u == first {
-			return nil
 		}
 	}
 }
@@ -634,24 +690,25 @@ func (c *Holdem) deal() *Agent {
 		}
 	}
 	cur := first
-	seats := make([]int8, 0)
-	for {
-		seats = append(seats, cur.gameInfo.seatNumber)
-		cur = cur.nextAgent
-		if cur == first {
-			break
-		}
-	}
 	firstAg := c.getNextOperator(c.button.nextAgent.nextAgent)
 	op := NewOperator(firstAg, 2*c.sb, 2*c.sb)
-	//稍微延迟告诉客户端可以下注
+	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(preflop::waitBet),以免请求早于接收通道开启
 	time.AfterFunc(200*time.Millisecond, func() {
+		first := c.button.nextAgent
+		cur = first
 		i := 0
+		seats := make([]int8, 0)
 		for {
-			cur.gameInfo.cards = cards[i]
-			cur.recv.PlayerGetCard(cur.gameInfo.seatNumber, cards[i], seats, int8(cnt), c.handStartInfo, op, cur == firstAg)
-			i++
-			cur = cur.nextAgent
+			//在座，但是不能发牌
+			if cur.fake {
+				cur = cur.nextAgent
+			} else {
+				cur.gameInfo.cards = cards[i]
+				cur.recv.PlayerGetCard(cur.gameInfo.seatNumber, cards[i], seats, int8(cnt), c.handStartInfo, op, cur == firstAg)
+				i++
+				seats = append(seats, cur.gameInfo.seatNumber)
+				cur = cur.nextAgent
+			}
 			if cur == first {
 				break
 			}
@@ -668,18 +725,20 @@ func (c *Holdem) deal() *Agent {
 
 //dealPublicCards 发公共牌
 func (c *Holdem) dealPublicCards(n int, round Round) ([]*Card, *Agent) {
-	c.log.Debug("deal public cards", zap.Int("cards_count", n))
+	c.log.Debug("deal public cards(start)", zap.Int("cards_count", n))
 	//洗牌
 	_, _ = c.poker.GetCards(1)
 	cards, _ := c.poker.GetCards(n)
 	c.publicCards = append(c.publicCards, cards...)
 	firstAg := c.getNextOperator(c.button)
 	firstOp := NewOperator(firstAg, 0, 2*c.sb)
+	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(flopTurnRiver::waitBet),以免请求早于接收通道开启
 	time.AfterFunc(200*time.Millisecond, func() {
 		for r := range c.roomers {
 			r.recv.RoomerGetPublicCard(cards, firstOp, firstAg == r)
 		}
 	})
+	c.log.Debug("deal public cards(end)", zap.Int("cards_count", n))
 	return cards, firstAg
 }
 
@@ -727,6 +786,7 @@ func (c *Holdem) simpleWin(agent *Agent) {
 	for {
 		r := &Result{
 			SeatNumber: u.gameInfo.seatNumber,
+			Te:         u.gameInfo.te,
 		}
 		if u.gameInfo.seatNumber == agent.gameInfo.seatNumber {
 			u.gameInfo.chip += c.pot
@@ -764,7 +824,9 @@ func (c *Holdem) startHand() {
 	c.smallBlind()
 	c.bigBlind()
 	//补盲
-	c.payToPlay()
+	if c.isPayToPlay {
+		c.payToPlay()
+	}
 	//发牌（返回第一个行动的人）
 	firstAg := c.deal()
 	//翻牌前下注

@@ -22,6 +22,7 @@ func NewCardResult(card *Card, selected bool) *CardResult {
 
 type Result struct {
 	SeatNumber      int8
+	Te              PlayType
 	Num             int
 	Cards           []*CardResult
 	HandValueType   HandValueType
@@ -63,6 +64,7 @@ func (c *Holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent,
 				l++
 				result[w.gameInfo.seatNumber] = &Result{
 					SeatNumber: w.gameInfo.seatNumber,
+					Te:         w.gameInfo.te,
 				}
 			}
 		}

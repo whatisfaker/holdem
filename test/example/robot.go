@@ -33,6 +33,7 @@ const (
 	SAShowCards
 	SACanBet
 	SAAction
+	SAMyAction
 	SAResult
 	SAError
 	SABringInSuccess
@@ -142,6 +143,12 @@ func (c *Robot) read() {
 			c.log.Debug("SAGetPCards", zap.String("info", string(in.Payload)))
 		case SAShowCards:
 			c.log.Debug("SAShowCards", zap.String("info", string(in.Payload)))
+		case SAMyAction:
+			if in.Action2 == holdem.ActionDefFold {
+				c.outCh <- &RobotAction{
+					Action: RAStandUp,
+				}
+			}
 		case SAAction:
 			c.log.Debug("SAAction", zap.Int8("seat", in.Seat), zap.String("action", in.Action2.String()), zap.Int("num", in.Num))
 		case SAResult:

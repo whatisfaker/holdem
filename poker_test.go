@@ -298,6 +298,24 @@ type TestAd struct {
 	Num int
 }
 
+type TestAd2 struct {
+	Ad *TestAd
+}
+
+func TestPointer(t *testing.T) {
+	a := &TestAd{
+		Num: 1,
+	}
+	b := &TestAd2{
+		Ad: a,
+	}
+	c := &TestAd2{}
+	c.Ad = b.Ad
+	c.Ad.Num = 2
+
+	t.Log(c.Ad, b.Ad)
+}
+
 func TestGoRoutine(t *testing.T) {
 	a := []*TestAd{
 		{

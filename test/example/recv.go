@@ -226,8 +226,13 @@ func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
 }
 
 //PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注))
-func (c *rec) PlayerActionSuccess(int8, int8, holdem.ActionDef, int, *holdem.Operator) {
-
+func (c *rec) PlayerActionSuccess(bs int8, s int8, act holdem.ActionDef, num int, h *holdem.Operator) {
+	c.ch <- &ServerAction{
+		Action:  SAMyAction,
+		Action2: act,
+		Num:     num,
+		Seat:    s,
+	}
 }
 
 func (c *rec) PlayerBuyInsuranceSuccess(seat int8, amount []*holdem.BuyInsurance) {
@@ -244,7 +249,7 @@ func (c *rec) PlayerCanBuyInsurance(seat int8, outsLen int, odds float64, outs m
 
 func (c *rec) PlayerStandUp(seat int8) {
 	c.ch <- &ServerAction{
-		Action: SASelfStandUp,
+		Action: SAStandUp,
 		Seat:   seat,
 	}
 }
