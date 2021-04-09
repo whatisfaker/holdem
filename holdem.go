@@ -8,48 +8,35 @@ import (
 	"go.uber.org/zap"
 )
 
-type Round int8
-
-const (
-	RoundPreFlop Round = iota + 1
-	RoundFlop
-	RoundTurn
-	RoundRiver
-)
-
-const (
-	GameStatusNotStart int8 = iota
-	GameStatusPlaying
-	GameStatusComplete
-)
-
-const (
-	StandUpNoChip int8 = iota
-	StandUpAction
-	StandUpGameEnd
-)
-
-func (c Round) String() string {
-	switch c {
-	case RoundPreFlop:
-		return "preflop"
-	case RoundFlop:
-		return "flop"
-	case RoundTurn:
-		return "turn"
-	case RoundRiver:
-		return "river"
-	}
-	return "unknonw"
+//StartNewHandInfo 新一手新自动操作信息
+type StartNewHandInfo struct {
+	//AnteAllIns 前注AllIn的座位号数组
+	AnteAllIns []int8
+	//SB 小盲下注信息(nil/SB/AllIn)
+	SB     *Bet
+	SBSeat int8
+	//BB 小盲下注信息(nil/BB/AllIn)
+	BB     *Bet
+	BBSeat int8
+	//PayToPlay 做了补盲的用户数组
+	PayToPlay []int8
 }
 
-type StartNewHandInfo struct {
-	AnteAllIns []int8
-	SB         *Bet
-	SBSeat     int8
-	BB         *Bet
-	BBSeat     int8
-	PayToPlay  []int8
+type HoldemState struct {
+	Ante        int
+	SmallBlind  int
+	SBSeat      int8
+	BigBlind    int
+	BBSeat      int8
+	SeatCount   int8
+	Seated      []*ShowUser
+	EmptySeats  []int8
+	ButtonSeat  int8
+	Pot         int
+	GameStatus  int8
+	HandNum     uint
+	PublicCards []*Card
+	Onlines     int
 }
 
 type Holdem struct {
@@ -145,7 +132,7 @@ func (c *Holdem) join(rs *Agent) {
 		}
 	}
 	c.roomers[rs] = true
-	rs.recv.PlayerJoinSuccess(rs.user, c)
+	rs.recv.PlayerJoinSuccess(rs.user, c.information())
 }
 
 //leave 离开
@@ -163,14 +150,18 @@ func (c *Holdem) leave(rs *Agent) {
 
 //Seated 坐下
 func (c *Holdem) seated(i int8, r *Agent) {
-	c.seatLock.Lock()
-	defer c.seatLock.Unlock()
-	if c.players[i] != nil {
-		r.ErrorOccur(ErrCodeSeatTaken, errSeatTaken)
+	if c.gameStatus == GameStatusComplete {
+		r.ErrorOccur(ErrCodeGameOver, errGameOver)
 		return
 	}
 	if r.gameInfo == nil || r.gameInfo.chip < c.ante+c.sb*2 {
 		r.ErrorOccur(ErrCodeNoChip, errNoChip)
+		return
+	}
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	if c.players[i] != nil {
+		r.ErrorOccur(ErrCodeSeatTaken, errSeatTaken)
 		return
 	}
 	r.gameInfo.seatNumber = i
@@ -252,34 +243,44 @@ func (c *Holdem) standUp(i int8, r *Agent, reason int8) {
 	}
 }
 
+func (c *Holdem) state() *HoldemState {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	return c.information()
+}
+
 //Information 游戏信息
-func (c *Holdem) Information() (ante int, sb int, pot int, publicCards []*Card, seatCount int8, players []*ShowUser, onlines int) {
-	ante = c.ante
-	sb = c.sb
-	pot = c.pot
-	publicCards = c.publicCards
-	seatCount = c.seatCount
-	onlines = len(c.roomers)
-	players = make([]*ShowUser, 0)
+func (c *Holdem) information() *HoldemState {
+	players := make([]*ShowUser, 0)
+	var s int8
+	emptySeats := make([]int8, 0)
+	for s = 1; s <= c.seatCount; s++ {
+		p, ok := c.players[s]
+		if ok {
+			players = append(players, p.ShowUser())
+		} else {
+			emptySeats = append(emptySeats, s)
+		}
+	}
 	for _, v := range c.players {
 		players = append(players, v.ShowUser())
 	}
-	return
-}
-
-func fakeAgent(p *Agent) *Agent {
-	ret := NewAgent(p.recv, p.user, p.log)
-	//状态重置
-	p.gameInfo.status = ActionDefNone
-	ret.gameInfo = p.gameInfo
-	ret.fake = true
-	ret.prevAgent = p.prevAgent
-	ret.nextAgent = p.nextAgent
-	p.prevAgent = nil
-	p.nextAgent = nil
-	ret.prevAgent.nextAgent = ret
-	ret.nextAgent.prevAgent = ret
-	return ret
+	return &HoldemState{
+		Ante:        c.ante,
+		SmallBlind:  c.sb,
+		SBSeat:      c.sbSeat,
+		BigBlind:    c.sb * 2,
+		BBSeat:      c.bbSeat,
+		SeatCount:   c.seatCount,
+		Seated:      players,
+		EmptySeats:  emptySeats,
+		ButtonSeat:  c.buttonSeat,
+		Pot:         c.pot,
+		GameStatus:  c.gameStatus,
+		HandNum:     c.handNum,
+		PublicCards: c.publicCards,
+		Onlines:     len(c.roomers),
+	}
 }
 
 //buttonPosition 决定按钮位置
@@ -359,6 +360,9 @@ func (c *Holdem) buttonPosition() bool {
 					newButton = u2
 				}
 				u = u2
+			} else {
+				//用户手数++
+				u.gameInfo.handNum++
 			}
 			u = u.nextAgent
 			if u == newButton {
@@ -977,55 +981,17 @@ func (c *Holdem) startHand() {
 	c.complexWin(users)
 }
 
-//Start 开始游戏
-func (c *Holdem) Start() {
-	c.log.Debug("game start")
-	c.gameStatus = GameStatusPlaying
-}
-
-//Wait 等待开始
-func (c *Holdem) Wait() {
-	for {
-		if c.gameStatus == GameStatusNotStart {
-			continue
-		}
-		ok := c.buttonPosition()
-		if !ok {
-			c.log.Debug("players are not enough, wait")
-		} else {
-			c.startHand()
-		}
-		next, wait := c.nextGame(c.handNum)
-		if next {
-			if ok {
-				//清理座位用户
-				c.seatLock.Lock()
-				for i, r := range c.players {
-					r.gameInfo.ResetForNextHand()
-					if r.gameInfo.chip == 0 {
-						c.delayStandUp(i, r, c.delayStandUpTimeout)
-						continue
-					}
-					if r.gameInfo.needStandUp {
-						c.log.Debug("user stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
-						c.standUp(i, r, StandUpAction)
-					}
-				}
-				c.seatLock.Unlock()
-			}
-			time.Sleep(wait)
-			continue
-		}
-		c.gameStatus = GameStatusComplete
-		c.log.Debug("game end")
-		//清理座位用户
-		c.seatLock.Lock()
-		for i, r := range c.players {
-			r.gameInfo.ResetForNextHand()
-			c.log.Debug("user end stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
-			c.standUp(i, r, StandUpGameEnd)
-		}
-		c.seatLock.Unlock()
-		return
-	}
+func fakeAgent(p *Agent) *Agent {
+	ret := NewAgent(p.recv, p.user, p.log)
+	//状态重置
+	p.gameInfo.status = ActionDefNone
+	ret.gameInfo = p.gameInfo
+	ret.fake = true
+	ret.prevAgent = p.prevAgent
+	ret.nextAgent = p.nextAgent
+	p.prevAgent = nil
+	p.nextAgent = nil
+	ret.prevAgent.nextAgent = ret
+	ret.nextAgent.prevAgent = ret
+	return ret
 }

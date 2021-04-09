@@ -3,10 +3,11 @@ package holdem
 type PlayType int8
 
 const (
-	PlayTypeNormal         PlayType = iota //正常
-	PlayTypeNeedPayToPlay                  //需要补盲
-	PlayTypeAgreePayToPlay                 //同意补盲
-	PlayTypeDisable                        //不能打牌
+	PlayTypeNone           PlayType = iota
+	PlayTypeNormal                  //正常
+	PlayTypeNeedPayToPlay           //需要补盲
+	PlayTypeAgreePayToPlay          //同意补盲
+	PlayTypeDisable                 //不能打牌
 )
 
 func (c PlayType) String() string {
@@ -40,6 +41,7 @@ type GameInfo struct {
 	chip        int
 	cards       []*Card
 	handValue   *HandValue
+	handNum     int
 	cardResults []*CardResult
 	insurance   map[int8]*BuyInsurance //CardValue: buy
 }

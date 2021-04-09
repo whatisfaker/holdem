@@ -16,6 +16,7 @@ const (
 	ErrCodeCannotEnablePayToPlay
 	ErrCodeNotStandUp
 	ErrCodeAlreadySeated
+	ErrCodeGameOver
 )
 
 var (
@@ -32,4 +33,5 @@ var (
 	errCannotEnablePayToPlay = errors.New("you can't pay to play")
 	errNotStandUp            = errors.New("you didnt leave table")
 	errAlreadySeated         = errors.New("you are already seated")
+	errGameOver              = errors.New("game is over")
 )

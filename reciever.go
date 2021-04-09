@@ -4,7 +4,7 @@ type Reciever interface {
 	//ErrorOccur 接收错误
 	ErrorOccur(int, error)
 	//RoomerGameInformation 游戏信息
-	RoomerGameInformation(*Holdem)
+	RoomerGameInformation(*HoldemState)
 	//RoomerJoin 接收有人进入游戏
 	RoomerJoin(UserInfo)
 	//RoomerLeave 接收有人离开游戏
@@ -40,7 +40,7 @@ type Reciever interface {
 	//PlayerBringInSuccess 玩家带入成功
 	PlayerBringInSuccess(seat int8, chip int)
 	//PlayerJoinSuccess 玩家进入游戏成功
-	PlayerJoinSuccess(UserInfo, *Holdem)
+	PlayerJoinSuccess(UserInfo, *HoldemState)
 	//PlayerLeaveSuccess 玩家离开游戏成功
 	PlayerLeaveSuccess(UserInfo)
 	//PlayerSeatedSuccess 玩家坐下成功(补盲状态)

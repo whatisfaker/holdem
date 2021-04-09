@@ -12,9 +12,11 @@ import (
 type ShowUser struct {
 	User       UserInfo
 	SeatNumber int8
+	Chip       int
 	RoundBet   int
 	Status     ActionDef
-	IsPlaying  bool
+	HandNum    int
+	Te         PlayType
 }
 
 type Agent struct {
@@ -32,46 +34,6 @@ type Agent struct {
 	nextAgent         *Agent
 	prevAgent         *Agent
 	fake              bool
-}
-
-type ActionDef int8
-
-const (
-	ActionDefNone ActionDef = iota
-	ActionDefAnte
-	ActionDefSB
-	ActionDefBB
-	ActionDefBet
-	ActionDefCall
-	ActionDefFold
-	ActionDefCheck
-	ActionDefRaise
-	ActionDefAllIn
-)
-
-func (c ActionDef) String() string {
-	switch c {
-	case ActionDefAnte:
-		return "ante"
-	case ActionDefSB:
-		return "small blind"
-	case ActionDefBB:
-		return "big blind"
-	case ActionDefBet:
-		return "bet"
-	case ActionDefCall:
-		return "call"
-	case ActionDefFold:
-		return "fold"
-	case ActionDefCheck:
-		return "check"
-	case ActionDefRaise:
-		return "raise"
-	case ActionDefAllIn:
-		return "all in"
-	default:
-		return "ready"
-	}
 }
 
 func NewAgent(recv Reciever, user UserInfo, log *zap.Logger) *Agent {
@@ -130,14 +92,11 @@ func (c *Agent) ShowUser() *ShowUser {
 	if c.gameInfo == nil {
 		return nil
 	}
+	c.showUser.Chip = c.gameInfo.chip
 	c.showUser.SeatNumber = c.gameInfo.seatNumber
-	if c.nextAgent != nil {
-		c.showUser.RoundBet = c.gameInfo.roundBet
-		c.showUser.Status = c.gameInfo.status
-		c.showUser.IsPlaying = true
-	} else {
-		c.showUser.IsPlaying = false
-	}
+	c.showUser.RoundBet = c.gameInfo.roundBet
+	c.showUser.Status = c.gameInfo.status
+	c.showUser.Te = c.gameInfo.te
 	return c.showUser
 }
 
@@ -152,10 +111,11 @@ func (c *Agent) Join(holdem *Holdem) {
 }
 
 //Info 获取信息
-func (c *Agent) Info(holdem *Holdem) {
-	holdem.seatLock.Lock()
-	defer holdem.seatLock.Unlock()
-	c.recv.RoomerGameInformation(holdem)
+func (c *Agent) Info() {
+	if c.h == nil {
+		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
+	}
+	c.recv.RoomerGameInformation(c.h.state())
 }
 
 //Leave 离开

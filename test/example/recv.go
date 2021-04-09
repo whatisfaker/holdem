@@ -54,18 +54,8 @@ func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo, payToPlay holdem.PlayTy
 	}
 }
 
-func (c *rec) RoomerGameInformation(h *holdem.Holdem) {
-	_, _, _, _, seatCount, players, _ := h.Information()
-	seats := make([]int, 0)
-	mp := make(map[int8]bool)
-	for _, v := range players {
-		mp[v.SeatNumber] = true
-	}
-	for i := 1; i < int(seatCount)+1; i++ {
-		if _, ok := mp[int8(i)]; !ok {
-			seats = append(seats, i)
-		}
-	}
+func (c *rec) RoomerGameInformation(h *holdem.HoldemState) {
+	seats := h.EmptySeats
 	b, _ := json.Marshal(seats)
 	c.ch <- &ServerAction{
 		Action:  SAGame,
@@ -73,18 +63,8 @@ func (c *rec) RoomerGameInformation(h *holdem.Holdem) {
 	}
 }
 
-func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.Holdem) {
-	_, _, _, _, seatCount, players, _ := h.Information()
-	seats := make([]int, 0)
-	mp := make(map[int8]bool)
-	for _, v := range players {
-		mp[v.SeatNumber] = true
-	}
-	for i := 1; i < int(seatCount)+1; i++ {
-		if _, ok := mp[int8(i)]; !ok {
-			seats = append(seats, i)
-		}
-	}
+func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.HoldemState) {
+	seats := h.EmptySeats
 	b, _ := json.Marshal(seats)
 	c.ch <- &ServerAction{
 		Action:  SAGame,

@@ -100,7 +100,7 @@ func (c *agentWrapper) read() {
 		case RASeat:
 			c.agent.Seated(int8(o.Num))
 		case RAInfo:
-			c.agent.Info(c.hub.h)
+			c.agent.Info()
 		case RABet:
 			c.agent.Bet(o.Bet)
 		case RAStandUp:
