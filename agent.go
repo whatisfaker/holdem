@@ -151,6 +151,13 @@ func (c *Agent) Join(holdem *Holdem) {
 	c.gameInfo = nil
 }
 
+//Info 获取信息
+func (c *Agent) Info(holdem *Holdem) {
+	holdem.seatLock.Lock()
+	defer holdem.seatLock.Unlock()
+	c.recv.RoomerGameInformation(holdem)
+}
+
 //Leave 离开
 func (c *Agent) Leave(holdem *Holdem) {
 	if c.h == nil {
@@ -194,6 +201,14 @@ func (c *Agent) BringIn(chip int) {
 func (c *Agent) Seated(i int8) {
 	if c.h == nil {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
+		return
+	}
+	if c.gameInfo == nil {
+		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber > 0 {
+		c.ErrorOccur(ErrCodeAlreadySeated, errAlreadySeated)
 		return
 	}
 	c.h.seated(i, c)

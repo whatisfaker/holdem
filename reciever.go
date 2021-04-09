@@ -3,6 +3,8 @@ package holdem
 type Reciever interface {
 	//ErrorOccur 接收错误
 	ErrorOccur(int, error)
+	//RoomerGameInformation 游戏信息
+	RoomerGameInformation(*Holdem)
 	//RoomerJoin 接收有人进入游戏
 	RoomerJoin(UserInfo)
 	//RoomerLeave 接收有人离开游戏
@@ -10,7 +12,7 @@ type Reciever interface {
 	//RoomerSeated 接收有人坐下
 	RoomerSeated(int8, UserInfo, PlayType)
 	//RoomerRoomerStandUp
-	RoomerStandUp(int8, UserInfo)
+	RoomerStandUp(int8, UserInfo, int8)
 	//RoomerGetCard 接收有人收到牌（位置,牌数量,操作者)
 	RoomerGetCard([]int8, int8, *StartNewHandInfo, *Operator)
 	//RoomerGetPublicCard 接收公共牌(牌,谁操作,是否是你操作)
@@ -50,7 +52,7 @@ type Reciever interface {
 	//PlayerReadyStandUpSuccess 玩家准备站起成功
 	PlayerReadyStandUpSuccess(int8)
 	//PlayerStandUp 玩家站起
-	PlayerStandUp(int8)
+	PlayerStandUp(int8, int8)
 	//PlayerKeepSeat 玩家占座(座位号)
 	PlayerKeepSeat(int8)
 }

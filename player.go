@@ -9,6 +9,19 @@ const (
 	PlayTypeDisable                        //不能打牌
 )
 
+func (c PlayType) String() string {
+	switch c {
+	default:
+		return "normal"
+	case PlayTypeNeedPayToPlay:
+		return "need bb"
+	case PlayTypeAgreePayToPlay:
+		return "aggree bb"
+	case PlayTypeDisable:
+		return "disable bb"
+	}
+}
+
 type UserInfo interface {
 	ID() string
 	Name() string

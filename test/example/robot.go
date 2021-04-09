@@ -13,6 +13,7 @@ type RA int8
 
 const (
 	RAJoin RA = iota + 1
+	RAInfo
 	RABringIn
 	RASeat
 	RABet
@@ -28,7 +29,7 @@ const (
 	SAGetCards
 	SAGetMyCards
 	SASelfSeated
-	SASelfStandUp
+	SAReadyStandUp
 	SAGetPCards
 	SAShowCards
 	SACanBet
@@ -40,11 +41,11 @@ const (
 )
 
 type Robot struct {
-	Seat  int8
-	inCh  chan *ServerAction
-	outCh chan *RobotAction
-	seats []int8
-	log   *zap.Logger
+	nochip bool
+	inCh   chan *ServerAction
+	outCh  chan *RobotAction
+	seats  []int8
+	log    *zap.Logger
 }
 
 type RobotAction struct {
@@ -55,7 +56,8 @@ type RobotAction struct {
 
 func NewRobot(log *zap.Logger) *Robot {
 	r := &Robot{
-		log: log,
+		log:    log,
+		nochip: true,
 	}
 	r.inCh = make(chan *ServerAction, 10)
 	r.outCh = make(chan *RobotAction, 10)
@@ -86,35 +88,66 @@ func (c *Robot) read() {
 			if in.Num == holdem.ErrCodeSeatTaken {
 				c.log.Warn("error ", zap.String("error", string(in.Payload)))
 				time.AfterFunc(time.Second, func() {
-					seat := c.seats[rand.Intn(len(c.seats))]
-					c.outCh <- &RobotAction{
-						Action: RASeat,
-						Num:    int(seat),
+					if len(c.seats) > 0 {
+						seat := c.seats[rand.Intn(len(c.seats))]
+						c.outCh <- &RobotAction{
+							Action: RASeat,
+							Num:    int(seat),
+						}
 					}
 				})
 			} else {
 				c.log.Error("error ", zap.String("error", string(in.Payload)))
 			}
 		case SABringInSuccess:
-			seat := c.seats[rand.Intn(len(c.seats))]
-			c.log.Debug("SABringInSuccess", zap.Int8("trysit", seat))
-			c.outCh <- &RobotAction{
-				Action: RASeat,
-				Num:    int(seat),
+			if len(c.seats) > 0 {
+				seat := c.seats[rand.Intn(len(c.seats))]
+				c.log.Debug("SABringInSuccess", zap.Int8("trysit", seat))
+				//fmt.Println("bringin", c.seats, seat)
+				c.outCh <- &RobotAction{
+					Action: RASeat,
+					Num:    int(seat),
+				}
 			}
 		case SAGame:
-			c.log.Debug("SAGame", zap.Int("bringIn", 10000), zap.String("seats", string(in.Payload)))
+			c.log.Debug("SAGame", zap.String("seats", string(in.Payload)))
 			var seats []int8
 			_ = json.Unmarshal(in.Payload, &seats)
 			c.seats = seats
-			c.outCh <- &RobotAction{
-				Action: RABringIn,
-				Num:    10000,
+			if len(c.seats) > 0 {
+				if c.nochip {
+					c.outCh <- &RobotAction{
+						Action: RABringIn,
+						Num:    10000,
+					}
+				}
+				// } else {
+
+				// 	seat := c.seats[rand.Intn(len(c.seats))]
+				// 	//fmt.Println("haschip", c.seats, seat)
+				// 	c.log.Debug("SAGame", zap.Int8("re-trysit", seat))
+				// 	c.outCh <- &RobotAction{
+				// 		Action: RASeat,
+				// 		Num:    int(seat),
+				// 	}
+				// }
 			}
 		case SAStandUp:
+			if int8(in.Num) == holdem.StandUpNoChip {
+				c.nochip = true
+			} else {
+				c.nochip = false
+			}
+			//站起来了
 			c.log.Debug("SAStandUp", zap.Int8("seat", in.Seat))
-		case SASelfStandUp:
-			c.log.Debug("SASelfStandUp", zap.Int8("seat", in.Seat))
+			time.AfterFunc(time.Second, func() {
+				c.outCh <- &RobotAction{
+					Action: RAInfo,
+				}
+			})
+		case SAReadyStandUp:
+			//准备站起
+			c.log.Debug("SAReadyStandUp", zap.Int8("seat", in.Seat))
 		case SASeated:
 			c.log.Debug("SASeated", zap.Int8("seat", in.Seat))
 			seat := in.Seat

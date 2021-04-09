@@ -68,8 +68,10 @@ func (c *Server) IsComplete() bool {
 	return c.complete
 }
 
+var id int
+
 func (c *Server) Connect(r *Robot) {
-	id := rand.Intn(100)
+	id++
 	l := c.log.With(zap.String("te", "agent"))
 	recv := &rec{
 		ch:  r.InCh(),
@@ -97,6 +99,8 @@ func (c *agentWrapper) read() {
 			c.agent.BringIn(o.Num)
 		case RASeat:
 			c.agent.Seated(int8(o.Num))
+		case RAInfo:
+			c.agent.Info(c.hub.h)
 		case RABet:
 			c.agent.Bet(o.Bet)
 		case RAStandUp:

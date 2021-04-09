@@ -54,6 +54,25 @@ func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo, payToPlay holdem.PlayTy
 	}
 }
 
+func (c *rec) RoomerGameInformation(h *holdem.Holdem) {
+	_, _, _, _, seatCount, players, _ := h.Information()
+	seats := make([]int, 0)
+	mp := make(map[int8]bool)
+	for _, v := range players {
+		mp[v.SeatNumber] = true
+	}
+	for i := 1; i < int(seatCount)+1; i++ {
+		if _, ok := mp[int8(i)]; !ok {
+			seats = append(seats, i)
+		}
+	}
+	b, _ := json.Marshal(seats)
+	c.ch <- &ServerAction{
+		Action:  SAGame,
+		Payload: b,
+	}
+}
+
 func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.Holdem) {
 	_, _, _, _, seatCount, players, _ := h.Information()
 	seats := make([]int, 0)
@@ -74,10 +93,11 @@ func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.Holdem) {
 }
 
 //RoomerRoomerStandUp
-func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo) {
+func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo, reason int8) {
 	c.ch <- &ServerAction{
 		Action: SAStandUp,
 		Seat:   seat,
+		Num:    int(reason),
 	}
 }
 
@@ -187,7 +207,7 @@ func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int
 }
 
 func (c *rec) ErrorOccur(code int, err error) {
-	c.log.Error("error occur", zap.Error(err))
+	//c.log.Error("error occur", zap.Error(err))
 	c.ch <- &ServerAction{
 		Action:  SAError,
 		Num:     code,
@@ -220,7 +240,7 @@ func (c *rec) PlayerSeatedSuccess(seat int8, payToPlay holdem.PlayType) {
 
 func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
 	c.ch <- &ServerAction{
-		Action: SASelfStandUp,
+		Action: SAReadyStandUp,
 		Seat:   seat,
 	}
 }
@@ -269,7 +289,7 @@ func (c *rec) PlayerCanBuyInsurance(seat int8, outsLen int, odds float64, outs m
 
 }
 
-func (c *rec) PlayerStandUp(seat int8) {
+func (c *rec) PlayerStandUp(seat int8, reason int8) {
 	c.ch <- &ServerAction{
 		Action: SAStandUp,
 		Seat:   seat,
