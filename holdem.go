@@ -150,10 +150,6 @@ func (c *Holdem) leave(rs *Agent) {
 
 //Seated 坐下
 func (c *Holdem) seated(i int8, r *Agent) {
-	if c.gameStatus == GameStatusComplete {
-		r.ErrorOccur(ErrCodeGameOver, errGameOver)
-		return
-	}
 	if r.gameInfo == nil || r.gameInfo.chip < c.ante+c.sb*2 {
 		r.ErrorOccur(ErrCodeNoChip, errNoChip)
 		return
@@ -229,7 +225,7 @@ func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration) {
 
 //standUp 站起来
 func (c *Holdem) standUp(i int8, r *Agent, reason int8) {
-	c.log.Debug("standup", zap.Int8("seat", i), zap.String("na", c.players[i].user.ID()), zap.Int8("te", int8(r.gameInfo.te)))
+	//c.log.Debug("standup", zap.Int8("seat", i), zap.Bool("fake", r.fake), zap.String("na", c.players[i].user.ID()), zap.Int8("te", int8(r.gameInfo.te)))
 	r.gameInfo = nil
 	delete(c.players, i)
 	c.playerCount--

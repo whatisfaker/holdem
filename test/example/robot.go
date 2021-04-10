@@ -2,6 +2,7 @@ package example
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -138,6 +139,7 @@ func (c *Robot) read() {
 			} else {
 				c.nochip = false
 			}
+			fmt.Println("standup", in.Seat)
 			//站起来了
 			c.log.Debug("SAStandUp", zap.Int8("seat", in.Seat))
 			time.AfterFunc(time.Second, func() {
@@ -188,6 +190,9 @@ func (c *Robot) read() {
 			results := make([]*holdem.Result, 0)
 			_ = json.Unmarshal(in.Payload, &results)
 			c.log.Debug("SAResult", zap.String("result", string(in.Payload)))
+			c.outCh <- &RobotAction{
+				Action: RAStandUp,
+			}
 		}
 	}
 

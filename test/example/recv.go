@@ -74,11 +74,11 @@ func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.HoldemState)
 
 //RoomerRoomerStandUp
 func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo, reason int8) {
-	c.ch <- &ServerAction{
-		Action: SAStandUp,
-		Seat:   seat,
-		Num:    int(reason),
-	}
+	// c.ch <- &ServerAction{
+	// 	Action: SAStandUp,
+	// 	Seat:   seat,
+	// 	Num:    int(reason),
+	// }
 }
 
 //RoomerGetCard 接收有人收到牌（位置,牌数量)

@@ -72,6 +72,7 @@ type InsuranceResult struct {
 }
 
 func (c *Agent) ErrorOccur(a int, e error) {
+	c.log.Error("error", zap.Error(e), zap.String("id", c.user.ID()))
 	c.recv.ErrorOccur(a, e)
 }
 
@@ -114,6 +115,7 @@ func (c *Agent) Join(holdem *Holdem) {
 func (c *Agent) Info() {
 	if c.h == nil {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
+		return
 	}
 	c.recv.RoomerGameInformation(c.h.state())
 }
@@ -141,6 +143,10 @@ func (c *Agent) BringIn(chip int) {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
 	}
+	if c.h.gameStatus == GameStatusComplete {
+		c.ErrorOccur(ErrCodeGameOver, errGameOver)
+		return
+	}
 	if chip <= 0 {
 		c.ErrorOccur(ErrCodeLessChip, errLessChip)
 		return
@@ -154,6 +160,7 @@ func (c *Agent) BringIn(chip int) {
 			bringIn: chip,
 		}
 	}
+	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.user.ID()), zap.Int("bringin", chip))
 	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, chip)
 }
 
@@ -161,6 +168,10 @@ func (c *Agent) BringIn(chip int) {
 func (c *Agent) Seated(i int8) {
 	if c.h == nil {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
+		return
+	}
+	if c.h.gameStatus == GameStatusComplete {
+		c.ErrorOccur(ErrCodeGameOver, errGameOver)
 		return
 	}
 	if c.gameInfo == nil {
@@ -292,7 +303,7 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 				cost += v.Num
 			}
 			if cost < c.gameInfo.chip {
-				c.recv.ErrorOccur(ErrCodeInvalidInsurance, errInvalidInsurance)
+				c.ErrorOccur(ErrCodeInvalidInsurance, errInvalidInsurance)
 				continue
 			}
 			amount = cost
@@ -420,14 +431,14 @@ func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round)
 	amount, ok := actions[bet.Action]
 	if !ok {
 		c.log.Error("invalid bet action", zap.String("action", bet.Action.String()), zap.Int("num", bet.Num), zap.Int("maxbet", maxRoundBet), zap.Int("mybeted", c.gameInfo.roundBet), zap.Int("min_raise", minRaise), zap.Int("mychip", c.gameInfo.chip))
-		c.recv.ErrorOccur(ErrCodeInvalidBetAction, errInvalidBetAction)
+		c.ErrorOccur(ErrCodeInvalidBetAction, errInvalidBetAction)
 		return false
 	}
 	if (bet.Action == ActionDefRaise && bet.Num < amount) ||
 		(bet.Action == ActionDefBet && bet.Num < amount) ||
 		(bet.Action != ActionDefRaise && bet.Action != ActionDefBet && bet.Num != amount) {
 		c.log.Error("invalid bet num", zap.String("action", bet.Action.String()), zap.Int("num", bet.Num), zap.Int("maxbet", maxRoundBet), zap.Int("mybeted", c.gameInfo.roundBet), zap.Int("min_raise", minRaise), zap.Int("mychip", c.gameInfo.chip))
-		c.recv.ErrorOccur(ErrCodeInvalidBetNum, errInvalidBetNum)
+		c.ErrorOccur(ErrCodeInvalidBetNum, errInvalidBetNum)
 		return false
 	}
 	return true

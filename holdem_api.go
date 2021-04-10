@@ -22,6 +22,7 @@ func (c *Holdem) Wait() {
 		if !ok {
 			c.log.Debug("players are not enough, wait")
 		} else {
+			c.log.Debug("hand start")
 			c.startHand()
 		}
 		next, wait := c.nextGame(c.handNum)
@@ -41,6 +42,7 @@ func (c *Holdem) Wait() {
 					}
 				}
 				c.seatLock.Unlock()
+				c.log.Debug("hand end")
 			}
 			time.Sleep(wait)
 			continue
