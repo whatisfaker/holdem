@@ -335,7 +335,7 @@ func (c *Holdem) buttonPosition() bool {
 			cur = p
 		}
 	}
-	if playerCount <= 1 || c.playingPlayerCount == 0 {
+	if playerCount <= 1 {
 		c.log.Debug("button position end(false)", zap.Int8("valid seat count", playerCount), zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 		return false
 	}
@@ -345,7 +345,7 @@ func (c *Holdem) buttonPosition() bool {
 	newBBSeat := newButton.nextAgent.nextAgent.gameInfo.seatNumber
 	if c.isPayToPlay {
 		//BB位可以脱离补盲状态
-		if newButton.nextAgent.nextAgent != newButton && (newButton.nextAgent.nextAgent.gameInfo.te == PlayTypeNeedPayToPlay || newButton.nextAgent.nextAgent.gameInfo.te == PlayTypeDisable) {
+		if newButton.nextAgent.nextAgent.gameInfo.te == PlayTypeNeedPayToPlay || newButton.nextAgent.nextAgent.gameInfo.te == PlayTypeDisable {
 			newButton.nextAgent.nextAgent.gameInfo.te = PlayTypeNormal
 			c.playingPlayerCount++
 		}
