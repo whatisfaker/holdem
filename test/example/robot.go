@@ -41,6 +41,7 @@ const (
 )
 
 type Robot struct {
+	seated bool
 	nochip bool
 	inCh   chan *ServerAction
 	outCh  chan *RobotAction
@@ -133,6 +134,7 @@ func (c *Robot) read() {
 				// }
 			}
 		case SAStandUp:
+			c.seated = false
 			if int8(in.Num) == holdem.StandUpNoChip {
 				c.nochip = true
 			} else {
@@ -160,6 +162,7 @@ func (c *Robot) read() {
 			}
 			c.seats = c.seats[:j]
 		case SASelfSeated:
+			c.seated = true
 			c.log.Debug("SASelfSeated", zap.Int8("seat", in.Seat))
 		case SACanBet:
 			bet := c.MyAction(in.BetInfo)
@@ -188,8 +191,10 @@ func (c *Robot) read() {
 			results := make([]*holdem.Result, 0)
 			_ = json.Unmarshal(in.Payload, &results)
 			c.log.Debug("SAResult", zap.String("result", string(in.Payload)))
-			c.outCh <- &RobotAction{
-				Action: RAStandUp,
+			if c.seated {
+				c.outCh <- &RobotAction{
+					Action: RAStandUp,
+				}
 			}
 		}
 	}

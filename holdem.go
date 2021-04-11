@@ -356,9 +356,6 @@ func (c *Holdem) buttonPosition() bool {
 					newButton = u2
 				}
 				u = u2
-			} else {
-				//用户手数++
-				u.gameInfo.handNum++
 			}
 			u = u.nextAgent
 			if u == newButton {
@@ -384,6 +381,16 @@ func (c *Holdem) buttonPosition() bool {
 		PayToPlay:  []int8{},
 		SBSeat:     c.sbSeat,
 		BBSeat:     c.bbSeat,
+	}
+	u := c.button
+	for {
+		if !u.fake {
+			u.gameInfo.handNum++
+		}
+		u = u.nextAgent
+		if u == c.button {
+			break
+		}
 	}
 	c.handNum++
 	c.log.Debug("button position end(true)", zap.Int8("buseat", c.buttonSeat), zap.String("buuser", c.button.user.ID()), zap.Int8("players", c.playerCount), zap.Int8("pc", c.playingPlayerCount))

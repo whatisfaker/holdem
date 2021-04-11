@@ -96,6 +96,7 @@ func (c *Agent) ShowUser() *ShowUser {
 	c.showUser.Chip = c.gameInfo.chip
 	c.showUser.SeatNumber = c.gameInfo.seatNumber
 	c.showUser.RoundBet = c.gameInfo.roundBet
+	c.showUser.HandNum = c.gameInfo.handNum
 	c.showUser.Status = c.gameInfo.status
 	c.showUser.Te = c.gameInfo.te
 	return c.showUser
