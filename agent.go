@@ -17,6 +17,7 @@ type ShowUser struct {
 	Status     ActionDef
 	HandNum    int
 	Te         PlayType
+	Cards      []*Card //坐着的用户返回信息带卡牌信息
 }
 
 type Agent struct {
@@ -118,7 +119,15 @@ func (c *Agent) Info() {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
 	}
-	c.recv.RoomerGameInformation(c.h.state())
+	s := c.h.state()
+	for k := range s.Seated {
+		p := s.Seated[k]
+		if p.User.ID() == c.user.ID() && p.User.Name() == c.user.Name() {
+			p.Cards = c.gameInfo.cards
+		}
+		s.Seated[k] = p
+	}
+	c.recv.RoomerGameInformation(s)
 }
 
 //Leave 离开
