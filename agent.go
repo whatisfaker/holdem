@@ -1,7 +1,6 @@
 package holdem
 
 import (
-	"fmt"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -21,7 +20,7 @@ type ShowUser struct {
 }
 
 type Agent struct {
-	invalid           bool
+	//	invalid           bool
 	user              UserInfo
 	log               *zap.Logger
 	recv              Reciever
@@ -77,12 +76,12 @@ func (c *Agent) ErrorOccur(a int, e error) {
 	c.recv.ErrorOccur(a, e)
 }
 
-func (c *Agent) String() string {
-	return fmt.Sprintf("chip:%d, roundBet:%d, handBet:%d", c.gameInfo.chip, c.gameInfo.roundBet, c.gameInfo.roundBet)
-}
+// func (c *Agent) String() string {
+// 	return fmt.Sprintf("chip:%d, roundBet:%d, handBet:%d", c.gameInfo.chip, c.gameInfo.roundBet, c.gameInfo.roundBet)
+// }
 
 //ShowUser 展示用户信息
-func (c *Agent) ShowUser() *ShowUser {
+func (c *Agent) displayUser() *ShowUser {
 	if c.gameInfo == nil {
 		return nil
 	}
@@ -143,9 +142,9 @@ func (c *Agent) Leave(holdem *Holdem) {
 	c.h = nil
 }
 
-func (c *Agent) Invalid(b bool) {
-	c.invalid = b
-}
+// func (c *Agent) Invalid(b bool) {
+// 	c.invalid = b
+// }
 
 //BringIn 带入筹码
 func (c *Agent) BringIn(chip int) {

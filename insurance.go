@@ -86,10 +86,17 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 
 func (c *Holdem) insuranceEnd(card *Card, round Round) {
 	for _, u := range c.insuranceUsers {
+		cost := 0
+		for _, v := range u.gameInfo.insurance {
+			cost += v.Num
+		}
 		ins, ok := u.gameInfo.insurance[card.Value()]
 		if ok {
 			outsLen := c.insuranceResult[u.gameInfo.seatNumber][round].Outs
 			c.insuranceResult[u.gameInfo.seatNumber][round].Earn = float64(ins.Num) * c.insuranceOdds[outsLen]
+			c.recorder.InsureResult(round, u.gameInfo.seatNumber, cost, c.insuranceResult[u.gameInfo.seatNumber][round].Earn)
+		} else {
+			c.recorder.InsureResult(round, u.gameInfo.seatNumber, cost, 0)
 		}
 	}
 }

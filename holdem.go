@@ -73,6 +73,7 @@ type Holdem struct {
 	insuranceResult      map[int8]map[Round]*InsuranceResult //保险结果
 	insuranceUsers       []*Agent                            //参与保险的玩家
 	delayStandUpTimeout  time.Duration                       //延迟站起来时间
+	recorder             Recorder
 }
 
 func NewHoldem(
@@ -88,6 +89,7 @@ func NewHoldem(
 	insuranceOdds map[int]float64,
 	insuranceWaitTimeout time.Duration,
 	delayStandUpTimeout time.Duration,
+	recorder Recorder, //记录器
 	log *zap.Logger, //日志
 ) *Holdem {
 	if nextGame == nil {
@@ -118,6 +120,7 @@ func NewHoldem(
 		nextGame:             nextGame,
 		isPayToPlay:          isPayToPlay,
 		payToPlayMap:         payMap,
+		recorder:             recorder,
 		delayStandUpTimeout:  delayStandUpTimeout,
 	}
 }
@@ -253,13 +256,13 @@ func (c *Holdem) information() *HoldemState {
 	for s = 1; s <= c.seatCount; s++ {
 		p, ok := c.players[s]
 		if ok {
-			players = append(players, p.ShowUser())
+			players = append(players, p.displayUser())
 		} else {
 			emptySeats = append(emptySeats, s)
 		}
 	}
 	for _, v := range c.players {
-		players = append(players, v.ShowUser())
+		players = append(players, v.displayUser())
 	}
 	return &HoldemState{
 		Ante:        c.ante,
@@ -393,6 +396,7 @@ func (c *Holdem) buttonPosition() bool {
 		}
 	}
 	c.handNum++
+	c.recorder.Begin(c.information())
 	c.log.Debug("button position end(true)", zap.Int8("buseat", c.buttonSeat), zap.String("buuser", c.button.user.ID()), zap.Int8("players", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 	return true
 }
@@ -412,6 +416,7 @@ func (c *Holdem) doAnte() {
 			c.pot += c.ante
 			u.gameInfo.chip -= c.ante
 			u.gameInfo.status = ActionDefAnte
+			c.recorder.Ante(u.gameInfo.seatNumber, u.gameInfo.chip, c.ante)
 			c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.ante))
 			u = u.nextAgent
 			if u == c.button {
@@ -421,6 +426,7 @@ func (c *Holdem) doAnte() {
 		}
 		c.handStartInfo.AnteAllIns = append(c.handStartInfo.AnteAllIns, u.gameInfo.seatNumber)
 		c.pot += u.gameInfo.chip
+		c.recorder.Ante(u.gameInfo.seatNumber, 0, u.gameInfo.chip)
 		u.gameInfo.chip = 0
 		u.gameInfo.status = ActionDefAllIn
 		c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.chip))
@@ -452,6 +458,7 @@ func (c *Holdem) smallBlind() {
 			Action: ActionDefSB,
 			Num:    c.sb,
 		}
+		c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefSB, c.sb)
 		c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.sb))
 		return
 	}
@@ -465,6 +472,7 @@ func (c *Holdem) smallBlind() {
 		Action: ActionDefAllIn,
 		Num:    u.gameInfo.roundBet,
 	}
+	c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
 	c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.roundBet))
 }
 
@@ -485,6 +493,7 @@ func (c *Holdem) bigBlind() {
 			Action: ActionDefBB,
 			Num:    c.sb * 2,
 		}
+		c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefBB, 2*c.sb)
 		c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.sb*2))
 		return
 	}
@@ -498,7 +507,8 @@ func (c *Holdem) bigBlind() {
 		Action: ActionDefAllIn,
 		Num:    u.gameInfo.roundBet,
 	}
-	c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.roundBet))
+	c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
+	c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.roundBet))
 }
 
 func (c *Holdem) payToPlay() {
@@ -512,6 +522,8 @@ func (c *Holdem) payToPlay() {
 			u.gameInfo.status = ActionDefBB
 			u.gameInfo.te = PlayTypeNormal
 			c.handStartInfo.PayToPlay = append(c.handStartInfo.PayToPlay, u.gameInfo.seatNumber)
+			//补盲
+			c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefBB, 2*c.sb)
 			c.log.Debug("pay to play", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.sb*2))
 		}
 		u = u.nextAgent
@@ -567,7 +579,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 			c.log.Error("incorrect action", zap.String("action", bet.Action.String()))
 			panic("incorrect action")
 		}
-
+		c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, bet.Action, bet.Num)
 		roundComplete, unfoldUsers, showcard = c.checkRoundComplete()
 		var next *Agent
 		var op *Operator
@@ -663,6 +675,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 			c.log.Error("incorrect action", zap.Int8("action", int8(bet.Action)))
 			panic("incorrect action")
 		}
+		c.recorder.Action(round, u.gameInfo.seatNumber, u.gameInfo.chip, bet.Action, bet.Num)
 		roundComplete, unfoldUsers, showcard = c.checkRoundComplete()
 		var next *Agent
 		var op *Operator
@@ -863,6 +876,7 @@ func (c *Holdem) complexWin(users []*Agent) {
 	for r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
+	c.recorder.End(ret)
 	c.log.Debug("cwin", zap.Any("result", ret))
 }
 
