@@ -1,9 +1,9 @@
 module github.com/whatisfaker/holdem
 
-go 1.13
+go 1.16
 
 require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	go.uber.org/zap v1.14.1
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c 
 	gopkg.in/stretchr/testify.v1 v1.2.2
 )

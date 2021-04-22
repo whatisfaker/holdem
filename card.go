@@ -1,8 +1,9 @@
 package holdem
 
 import (
-	"errors"
 	"fmt"
+
+	"errors"
 )
 
 //HandValueType 手牌牌型类型
@@ -73,7 +74,7 @@ func NewCard(num int8, suit int8) (*Card, error) {
 		return nil, ErrInvalidCard
 	}
 	if suit < 0 || suit > 3 {
-		return nil, ErrInvalidCard
+		return nil, ErrInvalidHandValueType
 	}
 	return &Card{
 		Num:  num,
@@ -81,12 +82,22 @@ func NewCard(num int8, suit int8) (*Card, error) {
 	}, nil
 }
 
+//SuitString 花色
 func (c Card) SuitString() string {
 	return suitMap[c.Suit]
 }
 
+//NumString 大小
 func (c Card) NumString() string {
 	return cardMap[c.Num]
+}
+
+func (c Card) String() string {
+	return suitMap[c.Suit] + cardMap[c.Num]
+}
+
+func (c Card) Value() int8 {
+	return c.Suit*15 + c.Num
 }
 
 //HandValue 手牌
@@ -110,18 +121,22 @@ func NewHandValue(nc []*Card) (*HandValue, error) {
 	return t, nil
 }
 
+//Cards 牌
 func (c *HandValue) Cards() [5]*Card {
 	return c.cards
 }
 
+//MaxHandValueType 最大手牌型
 func (c *HandValue) MaxHandValueType() HandValueType {
 	return c.maxHandValueType
 }
 
+//MaxHandValueType 计算用大小
 func (c *HandValue) Value() int64 {
 	return c.value
 }
 
+//HasCards 是否有某些牌
 func (c *HandValue) HasCards(nc ...*Card) bool {
 	ret := make(map[string]bool)
 	for _, v := range nc {
@@ -142,21 +157,23 @@ func (c *HandValue) HasCards(nc ...*Card) bool {
 	return true
 }
 
+//TaggingCards 标记牌
 func (c *HandValue) TaggingCards(nc []*Card) map[int]bool {
-	ret := make(map[*Card]bool)
+	ret := make(map[int8]bool)
 	for _, v := range nc {
-		ret[v] = false
+		ret[v.Value()] = false
 	}
 	for _, v := range c.cards {
-		ret[v] = true
+		ret[v.Value()] = true
 	}
 	ret2 := make(map[int]bool)
 	for i, v := range nc {
-		ret2[i] = ret[v]
+		ret2[i] = ret[v.Value()]
 	}
 	return ret2
 }
 
+//DebugCards 调试
 func (c *HandValue) DebugCards(nc []*Card) string {
 	mp := c.TaggingCards(nc)
 	var str string = "\n"

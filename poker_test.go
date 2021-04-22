@@ -2,6 +2,7 @@ package holdem
 
 import (
 	"testing"
+	"time"
 
 	"gopkg.in/stretchr/testify.v1/assert"
 )
@@ -259,4 +260,95 @@ func TestHVRoyalFlush(t *testing.T) {
 	r2, _ := GetMaxHandValueFromCard([]*Card{c1, c2, c3, c4, c5})
 	assert.Equal(r2.MaxHandValueType(), HVRoyalFlush)
 	assert.Equal(r2.Value() > r1.Value(), true)
+}
+
+func TestGetOuts(t *testing.T) {
+	publicCards := make([]*Card, 3)
+	publicCards[0], _ = NewCard(7, 2)
+	publicCards[1], _ = NewCard(9, 2)
+	publicCards[2], _ = NewCard(13, 0)
+	//publcCards[3], _ = NewCard(14, 0)
+
+	mp := make(map[int8][]*Card)
+	cards := make([]*Card, 2)
+	cards[0], _ = NewCard(8, 2)
+	cards[1], _ = NewCard(9, 1)
+	mp[2] = cards
+
+	cards = make([]*Card, 2)
+	cards[0], _ = NewCard(13, 2)
+	cards[1], _ = NewCard(14, 1)
+	mp[1] = cards
+
+	mp1, mp2 := GetAllOuts(publicCards, mp)
+
+	outs := GetOuts(mp1, mp2, []map[int8]bool{{1: true, 2: true}})
+	for _, v := range outs {
+		if v.Len > 0 {
+			for seat, m := range v.Detail {
+				for cd, vv := range m {
+					t.Log(seat, cd, vv)
+				}
+			}
+		}
+	}
+}
+
+type TestAd struct {
+	Num int
+}
+
+type TestAd2 struct {
+	Ad *TestAd
+}
+
+func TestPointer(t *testing.T) {
+	a := &TestAd{
+		Num: 1,
+	}
+	b := &TestAd2{
+		Ad: a,
+	}
+	c := &TestAd2{}
+	c.Ad = b.Ad
+	c.Ad.Num = 2
+
+	t.Log(c.Ad, b.Ad)
+}
+
+func TestGoRoutine(t *testing.T) {
+	a := []*TestAd{
+		{
+			Num: 1,
+		},
+		{
+			Num: 2,
+		},
+
+		{
+			Num: 3,
+		},
+	}
+	i := 0
+	var u *TestAd
+	u = a[i]
+	for u != nil {
+		t.Log(u.Num)
+		i++
+		var next *TestAd
+		if i <= 2 {
+			next = a[i]
+		}
+		this := u
+		time.AfterFunc(2*time.Second, func() {
+			if next != nil {
+				t.Log(this.Num, next.Num)
+			} else {
+				t.Log(this.Num, "null")
+			}
+		})
+		u = next
+	}
+	c := time.After(10 * time.Second)
+	<-c
 }
