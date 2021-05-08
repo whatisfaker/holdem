@@ -51,11 +51,11 @@ func NewPoker() *Poker {
 func newPokerWithExceptCardsAndNoShuffle(exceptCards []*Card) *Poker {
 	exceptMap := make(map[int8]bool)
 	for _, card := range exceptCards {
-		exceptMap[15*card.Suit+card.Num] = true
+		exceptMap[card.Value()] = true
 	}
 	cards := make([]*Card, 0)
 	for _, v := range pokerCards {
-		if _, ok := exceptMap[15*v.Suit+v.Num]; !ok {
+		if _, ok := exceptMap[v.Value()]; !ok {
 			cards = append(cards, v)
 		}
 	}
@@ -87,7 +87,7 @@ func (c *Poker) ResetAfterOffset(offset int) {
 func (c *Poker) GetCards(n int) ([]*Card, error) {
 	t := c.currentIndex
 	t += n
-	if t > c.maxCards-1 {
+	if t > c.maxCards {
 		return nil, ErrCardOutOfIndex
 	}
 	c.currentIndex = t
