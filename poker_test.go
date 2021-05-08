@@ -263,28 +263,39 @@ func TestHVRoyalFlush(t *testing.T) {
 }
 
 func TestGetOuts(t *testing.T) {
-	publicCards := make([]*Card, 3)
-	publicCards[0], _ = NewCard(7, 2)
-	publicCards[1], _ = NewCard(9, 2)
-	publicCards[2], _ = NewCard(13, 0)
-	//publcCards[3], _ = NewCard(14, 0)
+	publicCards := make([]*Card, 4)
+	publicCards[0], _ = NewCard(12, 0)
+	publicCards[1], _ = NewCard(7, 1)
+	publicCards[2], _ = NewCard(4, 1)
+	publicCards[3], _ = NewCard(10, 0)
 
 	mp := make(map[int8][]*Card)
 	cards := make([]*Card, 2)
-	cards[0], _ = NewCard(8, 2)
-	cards[1], _ = NewCard(9, 1)
+	cards[0], _ = NewCard(14, 0)
+	cards[1], _ = NewCard(12, 3)
+	mp[1] = cards
+
+	cards = make([]*Card, 2)
+	cards[0], _ = NewCard(5, 1)
+	cards[1], _ = NewCard(6, 1)
 	mp[2] = cards
 
 	cards = make([]*Card, 2)
-	cards[0], _ = NewCard(13, 2)
-	cards[1], _ = NewCard(14, 1)
-	mp[1] = cards
+	cards[0], _ = NewCard(13, 1)
+	cards[1], _ = NewCard(11, 1)
+	mp[3] = cards
+
+	cards = make([]*Card, 2)
+	cards[0], _ = NewCard(7, 0)
+	cards[1], _ = NewCard(2, 0)
+	mp[4] = cards
 
 	mp1, mp2 := GetAllOuts(publicCards, mp)
 
-	outs := GetOuts(mp1, mp2, []map[int8]bool{{1: true, 2: true}})
+	outs := GetOuts(mp1, mp2, []map[int8]bool{{1: true, 2: true, 3: true, 4: true}})
 	for _, v := range outs {
 		if v.Len > 0 {
+			t.Log(v.Len)
 			for seat, m := range v.Detail {
 				for cd, vv := range m {
 					t.Log(seat, cd, vv)

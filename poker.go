@@ -102,7 +102,7 @@ func (c *Poker) State() (int, int) {
 type Outs struct {
 	TargetSeat int8
 	Len        int
-	Detail     map[int8]map[*Card]*HandValue
+	Detail     map[int8]map[*Card]*HandValue //seat: card: handValue
 }
 
 //GetOuts 通过手牌，和预测手牌，计算每个分组中领先者对应的他人Outs
@@ -130,15 +130,25 @@ func GetOuts(allHands map[int8]*HandValue, allNextHands map[int8]map[*Card]*Hand
 				Detail:     make(map[int8]map[*Card]*HandValue),
 			}
 			for cd := range target {
+				mp2 := make(map[int8]*HandValue)
 				for os := range groupSeats {
-					if allNextHands[os][cd].value >= target[cd].value {
-						outs.Len++
-						_, ok := outs.Detail[os]
+					mp2[os] = allNextHands[os][cd]
+				}
+				max2 := GetMaxHandValueFromTaggedHandValues(mp2)
+				b := false
+				for s, hands := range max2 {
+					if hands.value >= target[cd].value {
+						b = true
+						_, ok := outs.Detail[s]
 						if !ok {
-							outs.Detail[os] = make(map[*Card]*HandValue)
+							outs.Detail[s] = make(map[*Card]*HandValue)
 						}
-						outs.Detail[os][cd] = allNextHands[os][cd]
+						outs.Detail[s][cd] = hands
 					}
+				}
+				//相同卡 只算一个out
+				if b {
+					outs.Len++
 				}
 			}
 			ret = append(ret, outs)
