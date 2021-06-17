@@ -1,5 +1,7 @@
 package holdem
 
+import "time"
+
 type Round int8
 
 const (
@@ -74,3 +76,7 @@ func (c ActionDef) String() string {
 		return "ready"
 	}
 }
+
+const (
+	delaySend = 200 * time.Millisecond
+)

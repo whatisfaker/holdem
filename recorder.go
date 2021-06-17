@@ -11,7 +11,7 @@ type Recorder interface {
 type nopRecorder struct {
 }
 
-func NewNopRecorder() Recorder {
+func newNopRecorder() Recorder {
 	return &nopRecorder{}
 }
 

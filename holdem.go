@@ -72,25 +72,17 @@ type Holdem struct {
 	insuranceWaitTimeout time.Duration                       //保险等待时间
 	insuranceResult      map[int8]map[Round]*InsuranceResult //保险结果
 	insuranceUsers       []*Agent                            //参与保险的玩家
-	delayStandUpTimeout  time.Duration                       //延迟站起来时间
+	delayStandUpTimeout  time.Duration                       //延迟站起来时间(等待买筹码)
 	recorder             Recorder
 }
 
 func NewHoldem(
-	sc int8, //最大座位数
+	sc int8, //座位数
 	sb int, //小盲
-	ante int, //前注
-	autoStart bool, //是否自动开始
-	minPlayers int8, //最小游戏人数
 	waitBetTimeout time.Duration, //等待下注超时时间
 	nextGame func(uint) (bool, time.Duration), //是否继续下一手判断/等待时间
-	isPayToPlay bool, //是否需要补盲
-	insurance bool, //保险
-	insuranceOdds map[int]float64,
-	insuranceWaitTimeout time.Duration,
-	delayStandUpTimeout time.Duration,
-	recorder Recorder, //记录器
 	log *zap.Logger, //日志
+	ops ...HoldemOption,
 ) *Holdem {
 	if nextGame == nil {
 		nextGame = func(uint) (bool, time.Duration) {
@@ -102,6 +94,23 @@ func NewHoldem(
 	for i = 1; i <= sc; i++ {
 		payMap[i] = PlayTypeNormal
 	}
+	exts := &extOptions{
+		insuranceOpen: false,
+		recorder:      newNopRecorder(),
+		isPayToPlay:   false,
+		medadata:      make(map[string]string),
+	}
+	for _, o := range ops {
+		o.apply(exts)
+	}
+	if exts.autoStart {
+		if exts.minPlayers > sc {
+			exts.minPlayers = sc
+		}
+		if exts.minPlayers < 2 {
+			exts.minPlayers = 2
+		}
+	}
 	return &Holdem{
 		poker:                NewPoker(),
 		players:              make(map[int8]*Agent),
@@ -109,19 +118,19 @@ func NewHoldem(
 		publicCards:          make([]*Card, 0, 5),
 		waitBetTimeout:       waitBetTimeout,
 		seatCount:            sc,
-		autoStart:            autoStart,
-		minPlayers:           minPlayers,
+		autoStart:            exts.autoStart,
+		minPlayers:           exts.minPlayers,
 		sb:                   sb,
-		ante:                 ante,
+		ante:                 exts.ante,
 		log:                  log,
-		insurance:            insurance,
-		insuranceOdds:        insuranceOdds,
-		insuranceWaitTimeout: insuranceWaitTimeout,
+		insurance:            exts.insuranceOpen,
+		insuranceOdds:        exts.insuranceOdds,
+		insuranceWaitTimeout: exts.insuranceWaitTimeout,
 		nextGame:             nextGame,
-		isPayToPlay:          isPayToPlay,
+		isPayToPlay:          exts.isPayToPlay,
 		payToPlayMap:         payMap,
-		recorder:             recorder,
-		delayStandUpTimeout:  delayStandUpTimeout,
+		recorder:             exts.recorder,
+		delayStandUpTimeout:  exts.delayStandUpTimeout,
 	}
 }
 
@@ -589,7 +598,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		}
 		thisAgent := u
 		//稍微延迟告诉客户端可以下注
-		time.AfterFunc(200*time.Millisecond, func() {
+		time.AfterFunc(delaySend, func() {
 			thisAgent.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op)
 			for r := range c.roomers {
 				if r != thisAgent {
@@ -600,7 +609,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		u = next
 	}
 	//等500ms
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * delaySend)
 	if showcard {
 		scs := make([]*ShowCard, 0)
 		for _, v := range unfoldUsers {
@@ -685,7 +694,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 		}
 		//稍微延迟告诉客户端可以下注
 		thisAgent := u
-		time.AfterFunc(200*time.Millisecond, func() {
+		time.AfterFunc(delaySend, func() {
 			thisAgent.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op)
 			for r := range c.roomers {
 				if r != thisAgent {
@@ -695,7 +704,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 		})
 		u = next
 	}
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * delaySend)
 	//非河牌直接亮牌
 	if round != RoundRiver && showcard {
 		scs := make([]*ShowCard, 0)
@@ -793,7 +802,7 @@ func (c *Holdem) deal() *Agent {
 	firstAg := c.getNextOperator(c.button.nextAgent.nextAgent)
 	op := NewOperator(firstAg, 2*c.sb, 2*c.sb)
 	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(preflop::waitBet),以免请求早于接收通道开启
-	time.AfterFunc(200*time.Millisecond, func() {
+	time.AfterFunc(delaySend, func() {
 		first := c.button.nextAgent
 		cur = first
 		i := 0
@@ -833,7 +842,7 @@ func (c *Holdem) dealPublicCards(n int, round Round) ([]*Card, *Agent) {
 	firstAg := c.getNextOperator(c.button)
 	firstOp := NewOperator(firstAg, 0, 2*c.sb)
 	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(flopTurnRiver::waitBet),以免请求早于接收通道开启
-	time.AfterFunc(200*time.Millisecond, func() {
+	time.AfterFunc(delaySend, func() {
 		for r := range c.roomers {
 			r.recv.RoomerGetPublicCard(cards, firstOp, firstAg == r)
 		}
@@ -908,6 +917,7 @@ func (c *Holdem) simpleWin(agent *Agent) {
 	for r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
+	c.recorder.End(ret)
 	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.user.ID()), zap.Any("result", ret))
 }
 
