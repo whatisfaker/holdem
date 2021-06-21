@@ -55,7 +55,8 @@ type Holdem struct {
 	button               *Agent                              //庄家玩家
 	waitBetTimeout       time.Duration                       //等待下注的超时时间
 	seatLock             sync.Mutex                          //玩家锁
-	gameStatus           int8                                //是否开始 0:未开始 1:已开始 2:已结束
+	gameStartedLock      int32                               //是否开始原子锁
+	gameStatusCh         chan int8                           //开始通道
 	handStartInfo        *StartNewHandInfo                   //当前一手开局信息
 	sb                   int                                 //小盲
 	ante                 int                                 //前注
@@ -189,7 +190,7 @@ func (c *Holdem) seated(i int8, r *Agent) {
 			rr.recv.RoomerSeated(i, r.user, r.gameInfo.te)
 		}
 	}
-	if c.gameStatus == GameStatusNotStart && c.autoStart && c.playerCount >= c.minPlayers {
+	if c.Status() == GameStatusNotStart && c.autoStart && c.playerCount >= c.minPlayers {
 		if ok, _ := c.nextGame(c.handNum); ok {
 			c.Start()
 		}
@@ -222,7 +223,7 @@ func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration) {
 			return
 		}
 		//游戏已经结束
-		if c.gameStatus == GameStatusComplete {
+		if c.Status() == GameStatusComplete || c.Status() == GameStatusCancel {
 			return
 		}
 		//还是空筹码
@@ -284,7 +285,7 @@ func (c *Holdem) information() *HoldemState {
 		EmptySeats:  emptySeats,
 		ButtonSeat:  c.buttonSeat,
 		Pot:         c.pot,
-		GameStatus:  c.gameStatus,
+		GameStatus:  c.Status(),
 		HandNum:     c.handNum,
 		PublicCards: c.publicCards,
 		Onlines:     len(c.roomers),

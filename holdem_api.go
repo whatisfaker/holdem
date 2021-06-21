@@ -1,6 +1,7 @@
 package holdem
 
 import (
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -8,22 +9,50 @@ import (
 
 //Start 开始游戏
 func (c *Holdem) Start() {
-	c.log.Debug("game start")
-	c.gameStatus = GameStatusPlaying
+	if atomic.LoadInt32(&c.gameStartedLock) == 0 {
+		atomic.StoreInt32(&c.gameStartedLock, int32(GameStatusStarted))
+		c.gameStatusCh <- GameStatusStarted
+	}
+}
+
+func (c *Holdem) Cancel() {
+	if atomic.LoadInt32(&c.gameStartedLock) == 0 {
+		c.gameStatusCh <- GameStatusCancel
+		atomic.StoreInt32(&c.gameStartedLock, int32(GameStatusCancel))
+	} else {
+		c.log.Warn("can not cancel a started game")
+	}
+}
+
+func (c *Holdem) Status() int8 {
+	v := atomic.LoadInt32(&c.gameStartedLock)
+	return int8(v)
 }
 
 //Wait 等待开始
 func (c *Holdem) Wait() {
-	for {
-		if c.gameStatus == GameStatusNotStart {
-			continue
+	c.gameStatusCh = make(chan int8)
+	defer close(c.gameStatusCh)
+	v := <-c.gameStatusCh
+	if v == GameStatusCancel {
+		c.log.Debug("game cancel")
+		//清理座位用户
+		c.seatLock.Lock()
+		for i, r := range c.players {
+			r.gameInfo.ResetForNextHand()
+			c.log.Debug("user cancel stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+			c.standUp(i, r, StandUpGameEnd)
 		}
+		c.seatLock.Unlock()
+		return
+	}
+	c.log.Debug("game start")
+	for {
 		ok := c.buttonPosition()
 		if !ok {
 			c.log.Debug("players are not enough, wait")
 			continue
 		}
-
 		c.log.Debug("hand start")
 		c.startHand()
 		next, wait := c.nextGame(c.handNum)
@@ -53,7 +82,7 @@ func (c *Holdem) Wait() {
 			time.Sleep(wait)
 			continue
 		}
-		c.gameStatus = GameStatusComplete
+		atomic.StoreInt32(&c.gameStartedLock, int32(GameStatusComplete))
 		//清理座位用户
 		c.seatLock.Lock()
 		for i, r := range c.players {

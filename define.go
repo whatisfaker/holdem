@@ -13,7 +13,8 @@ const (
 
 const (
 	GameStatusNotStart int8 = iota
-	GameStatusPlaying
+	GameStatusStarted
+	GameStatusCancel
 	GameStatusComplete
 )
 

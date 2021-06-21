@@ -152,7 +152,7 @@ func (c *Agent) BringIn(chip int) {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
 	}
-	if c.h.gameStatus == GameStatusComplete {
+	if c.h.Status() == GameStatusComplete || c.h.Status() == GameStatusCancel {
 		c.ErrorOccur(ErrCodeGameOver, errGameOver)
 		return
 	}
@@ -179,7 +179,7 @@ func (c *Agent) Seated(i int8) {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
 	}
-	if c.h.gameStatus == GameStatusComplete {
+	if c.h.Status() == GameStatusComplete || c.h.Status() == GameStatusCancel {
 		c.ErrorOccur(ErrCodeGameOver, errGameOver)
 		return
 	}
