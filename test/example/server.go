@@ -48,8 +48,8 @@ func NewServer(from time.Time, to time.Time, count uint, log *zap.Logger) *Serve
 		hands:    count,
 		complete: false,
 	}
-	nextGame := func(handCount uint) (bool, time.Duration) {
-		if handCount >= count {
+	nextGame := func(h *holdem.Holdem) (bool, time.Duration) {
+		if h.State().HandNum >= count {
 			s.complete = true
 			return false, 0
 		}
@@ -60,7 +60,6 @@ func NewServer(from time.Time, to time.Time, count uint, log *zap.Logger) *Serve
 		mp[i] = rand.Float64() * 100
 	}
 	s.h = holdem.NewHoldem(9, 100, 20*time.Second, nextGame, log.With(zap.String("te", "server")), holdem.OptionPayToWin(), holdem.OptionInsurance(mp, 10*time.Second), holdem.OptionAutoStart(2))
-	go s.h.Wait()
 	return s
 }
 

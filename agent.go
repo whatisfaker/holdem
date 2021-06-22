@@ -118,7 +118,7 @@ func (c *Agent) Info() {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
 	}
-	s := c.h.state()
+	s := c.h.State()
 	for k := range s.Seated {
 		p := s.Seated[k]
 		if p.User.ID() == c.user.ID() && p.User.Name() == c.user.Name() {
@@ -152,7 +152,7 @@ func (c *Agent) BringIn(chip uint) {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
 	}
-	if c.h.Status() == GameStatusComplete || c.h.Status() == GameStatusCancel {
+	if c.h.status() == GameStatusComplete || c.h.status() == GameStatusCancel {
 		c.ErrorOccur(ErrCodeGameOver, errGameOver)
 		return
 	}
@@ -179,7 +179,7 @@ func (c *Agent) Seated(i int8) {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
 	}
-	if c.h.Status() == GameStatusComplete || c.h.Status() == GameStatusCancel {
+	if c.h.status() == GameStatusComplete || c.h.status() == GameStatusCancel {
 		c.ErrorOccur(ErrCodeGameOver, errGameOver)
 		return
 	}
