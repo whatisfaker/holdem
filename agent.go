@@ -11,10 +11,10 @@ import (
 type ShowUser struct {
 	User       UserInfo
 	SeatNumber int8
-	Chip       int
-	RoundBet   int
+	Chip       uint
+	RoundBet   uint
 	Status     ActionDef
-	HandNum    int
+	HandNum    uint
 	Te         PlayType
 	Cards      []*Card //坐着的用户返回信息带卡牌信息
 }
@@ -48,21 +48,21 @@ func NewAgent(recv Reciever, user UserInfo, log *zap.Logger) *Agent {
 type Bet struct {
 	Action ActionDef
 	//Num 这次投入的数量
-	Num int
+	Num uint
 	//Auto
 	Auto bool
 }
 
 type BuyInsurance struct {
 	Card *Card
-	Num  int
+	Num  uint
 }
 
 type InsuranceResult struct {
 	//SeatNumber 座位号
 	SeatNumber int8
 	//Cost 消费
-	Cost int
+	Cost uint
 	//Earn 获取
 	Earn float64
 	//Outs 补牌数
@@ -147,7 +147,7 @@ func (c *Agent) Leave(holdem *Holdem) {
 // }
 
 //BringIn 带入筹码
-func (c *Agent) BringIn(chip int) {
+func (c *Agent) BringIn(chip uint) {
 	if c.h == nil {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
@@ -169,7 +169,7 @@ func (c *Agent) BringIn(chip int) {
 			bringIn: chip,
 		}
 	}
-	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.user.ID()), zap.Int("bringin", chip))
+	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.user.ID()), zap.Uint("bringin", chip))
 	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, chip)
 }
 
@@ -287,12 +287,12 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 	c.insuranceCh = make(chan []*BuyInsurance, 1)
 	c.gameInfo.insurance = make(map[int8]*BuyInsurance)
 	timer := time.NewTimer(timeout)
-	amount := 0
+	var amount uint
 	defer func() {
 		c.enableBuyInsurance(false)
 		close(c.insuranceCh)
 		timer.Stop()
-		c.log.Debug("buy insurance end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", amount), zap.String("round", round.String()))
+		c.log.Debug("buy insurance end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Uint("amount", amount), zap.String("round", round.String()))
 	}()
 	//稍微延迟告诉客户端可以下注
 	time.AfterFunc(delaySend, func() {
@@ -306,7 +306,7 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 			if !ok {
 				return nil, nil
 			}
-			cost := 0
+			var cost uint
 			for _, v := range is {
 				c.gameInfo.insurance[v.Card.Value()] = v
 				cost += v.Num
@@ -350,7 +350,7 @@ func (p betSort) GroupBet() []map[int8]bool {
 	sort.Sort(p)
 	var pot map[int8]bool
 	pots := make([]map[int8]bool, 0)
-	var num int
+	var num uint
 	for _, a := range p {
 		if pot == nil {
 			pot = map[int8]bool{a.gameInfo.seatNumber: true}
@@ -369,7 +369,7 @@ func (p betSort) GroupBet() []map[int8]bool {
 	return pots
 }
 
-func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Duration) (rbet *Bet) {
+func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Duration) (rbet *Bet) {
 	c.enableBet(true)
 	c.betCh = make(chan *Bet, 1)
 	timer := time.NewTimer(timeout)
@@ -377,7 +377,7 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 		c.enableBet(false)
 		close(c.betCh)
 		timer.Stop()
-		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Int("amount", rbet.Num), zap.Bool("auto", rbet.Auto), zap.String("round", round.String()))
+		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Uint("amount", rbet.Num), zap.Bool("auto", rbet.Auto), zap.String("round", round.String()))
 	}()
 	//循环如果投注错误,还可以让客户重新投注直到超时
 	for {
@@ -407,9 +407,9 @@ func (c *Agent) waitBet(curBet int, minBet int, round Round, timeout time.Durati
 }
 
 //isValidBet 判断是否是有效的投注
-func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round) bool {
+func (c *Agent) isValidBet(bet *Bet, maxRoundBet uint, minRaise uint, round Round) bool {
 	//第一个人/或者前面没有人下注
-	actions := make(map[ActionDef]int)
+	actions := make(map[ActionDef]uint)
 	if maxRoundBet == 0 {
 		if c.gameInfo.chip > minRaise {
 			actions[ActionDefFold] = 0
@@ -439,14 +439,14 @@ func (c *Agent) isValidBet(bet *Bet, maxRoundBet int, minRaise int, round Round)
 	}
 	amount, ok := actions[bet.Action]
 	if !ok {
-		c.log.Error("invalid bet action", zap.String("action", bet.Action.String()), zap.Int("num", bet.Num), zap.Int("maxbet", maxRoundBet), zap.Int("mybeted", c.gameInfo.roundBet), zap.Int("min_raise", minRaise), zap.Int("mychip", c.gameInfo.chip))
+		c.log.Error("invalid bet action", zap.String("action", bet.Action.String()), zap.Uint("num", bet.Num), zap.Uint("maxbet", maxRoundBet), zap.Uint("mybeted", c.gameInfo.roundBet), zap.Uint("min_raise", minRaise), zap.Uint("mychip", c.gameInfo.chip))
 		c.ErrorOccur(ErrCodeInvalidBetAction, errInvalidBetAction)
 		return false
 	}
 	if (bet.Action == ActionDefRaise && bet.Num < amount) ||
 		(bet.Action == ActionDefBet && bet.Num < amount) ||
 		(bet.Action != ActionDefRaise && bet.Action != ActionDefBet && bet.Num != amount) {
-		c.log.Error("invalid bet num", zap.String("action", bet.Action.String()), zap.Int("num", bet.Num), zap.Int("maxbet", maxRoundBet), zap.Int("mybeted", c.gameInfo.roundBet), zap.Int("min_raise", minRaise), zap.Int("mychip", c.gameInfo.chip))
+		c.log.Error("invalid bet num", zap.String("action", bet.Action.String()), zap.Uint("num", bet.Num), zap.Uint("maxbet", maxRoundBet), zap.Uint("mybeted", c.gameInfo.roundBet), zap.Uint("min_raise", minRaise), zap.Uint("mychip", c.gameInfo.chip))
 		c.ErrorOccur(ErrCodeInvalidBetNum, errInvalidBetNum)
 		return false
 	}

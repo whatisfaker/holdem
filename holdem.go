@@ -23,20 +23,21 @@ type StartNewHandInfo struct {
 }
 
 type HoldemState struct {
-	Ante        int
-	SmallBlind  int
+	Ante        uint
+	SmallBlind  uint
 	SBSeat      int8
-	BigBlind    int
+	BigBlind    uint
 	BBSeat      int8
 	SeatCount   int8
 	Seated      []*ShowUser
 	EmptySeats  []int8
 	ButtonSeat  int8
-	Pot         int
+	Pot         uint
 	GameStatus  int8
 	HandNum     uint
 	PublicCards []*Card
-	Onlines     int
+	Onlines     uint
+	Metadata    map[string]string
 }
 
 type Holdem struct {
@@ -58,11 +59,12 @@ type Holdem struct {
 	gameStartedLock      int32                               //是否开始原子锁
 	gameStatusCh         chan int8                           //开始通道
 	handStartInfo        *StartNewHandInfo                   //当前一手开局信息
-	sb                   int                                 //小盲
-	ante                 int                                 //前注
-	pot                  int                                 //彩池
-	roundBet             int                                 //当前轮下注额
-	minRaise             int                                 //最小加注量
+	sb                   uint                                //小盲
+	nextSb               uint                                //即将修改的小盲
+	ante                 uint                                //前注
+	pot                  uint                                //彩池
+	roundBet             uint                                //当前轮下注额
+	minRaise             uint                                //最小加注量
 	publicCards          []*Card                             //公共牌
 	log                  *zap.Logger                         //日志
 	autoStart            bool                                //是否自动开始
@@ -74,12 +76,13 @@ type Holdem struct {
 	insuranceResult      map[int8]map[Round]*InsuranceResult //保险结果
 	insuranceUsers       []*Agent                            //参与保险的玩家
 	delayStandUpTimeout  time.Duration                       //延迟站起来时间(等待买筹码)
-	recorder             Recorder
+	meta                 map[string]string                   //额外数据
+	recorder             Recorder                            //记录器
 }
 
 func NewHoldem(
 	sc int8, //座位数
-	sb int, //小盲
+	sb uint, //小盲
 	waitBetTimeout time.Duration, //等待下注超时时间
 	nextGame func(uint) (bool, time.Duration), //是否继续下一手判断/等待时间
 	log *zap.Logger, //日志
@@ -132,6 +135,7 @@ func NewHoldem(
 		payToPlayMap:         payMap,
 		recorder:             exts.recorder,
 		delayStandUpTimeout:  exts.delayStandUpTimeout,
+		meta:                 exts.medadata,
 	}
 }
 
@@ -288,7 +292,8 @@ func (c *Holdem) information() *HoldemState {
 		GameStatus:  c.Status(),
 		HandNum:     c.handNum,
 		PublicCards: c.publicCards,
-		Onlines:     len(c.roomers),
+		Onlines:     uint(len(c.roomers)),
+		Metadata:    c.meta,
 	}
 }
 
@@ -427,7 +432,7 @@ func (c *Holdem) doAnte() {
 			u.gameInfo.chip -= c.ante
 			u.gameInfo.status = ActionDefAnte
 			c.recorder.Ante(u.gameInfo.seatNumber, u.gameInfo.chip, c.ante)
-			c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.ante))
+			c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.ante))
 			u = u.nextAgent
 			if u == c.button {
 				break
@@ -439,7 +444,7 @@ func (c *Holdem) doAnte() {
 		c.recorder.Ante(u.gameInfo.seatNumber, 0, u.gameInfo.chip)
 		u.gameInfo.chip = 0
 		u.gameInfo.status = ActionDefAllIn
-		c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.chip))
+		c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.chip))
 		u = u.nextAgent
 		if u == c.button {
 			break
@@ -469,7 +474,7 @@ func (c *Holdem) smallBlind() {
 			Num:    c.sb,
 		}
 		c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefSB, c.sb)
-		c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.sb))
+		c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb))
 		return
 	}
 	//不够时 全下
@@ -483,7 +488,7 @@ func (c *Holdem) smallBlind() {
 		Num:    u.gameInfo.roundBet,
 	}
 	c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
-	c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.roundBet))
+	c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.roundBet))
 }
 
 //bigBlind 大盲
@@ -504,7 +509,7 @@ func (c *Holdem) bigBlind() {
 			Num:    c.sb * 2,
 		}
 		c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefBB, 2*c.sb)
-		c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.sb*2))
+		c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb*2))
 		return
 	}
 	//不够时 全下
@@ -518,7 +523,7 @@ func (c *Holdem) bigBlind() {
 		Num:    u.gameInfo.roundBet,
 	}
 	c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
-	c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", u.gameInfo.roundBet))
+	c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.roundBet))
 }
 
 func (c *Holdem) payToPlay() {
@@ -534,7 +539,7 @@ func (c *Holdem) payToPlay() {
 			c.handStartInfo.PayToPlay = append(c.handStartInfo.PayToPlay, u.gameInfo.seatNumber)
 			//补盲
 			c.recorder.Action(RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefBB, 2*c.sb)
-			c.log.Debug("pay to play", zap.Int8("seat", u.gameInfo.seatNumber), zap.Int("amount", c.sb*2))
+			c.log.Debug("pay to play", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb*2))
 		}
 		u = u.nextAgent
 		if u == c.button {

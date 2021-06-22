@@ -86,7 +86,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 
 func (c *Holdem) insuranceEnd(card *Card, round Round) {
 	for _, u := range c.insuranceUsers {
-		cost := 0
+		var cost uint
 		for _, v := range u.gameInfo.insurance {
 			cost += v.Num
 		}

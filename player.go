@@ -34,14 +34,14 @@ type GameInfo struct {
 	seatNumber  int8
 	status      ActionDef
 	needStandUp bool //需要离开
-	roundBet    int
-	handBet     int
-	bringIn     int
+	roundBet    uint
+	handBet     uint
+	bringIn     uint
 	te          PlayType
-	chip        int
+	chip        uint
 	cards       []*Card
 	handValue   *HandValue
-	handNum     int
+	handNum     uint
 	cardResults []*CardResult
 	insurance   map[int8]*BuyInsurance //CardValue: buy
 }

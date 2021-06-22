@@ -51,7 +51,7 @@ type Robot struct {
 
 type RobotAction struct {
 	Action RA
-	Num    int
+	Num    uint
 	Bet    *holdem.Bet
 }
 
@@ -93,7 +93,7 @@ func (c *Robot) read() {
 						seat := c.seats[rand.Intn(len(c.seats))]
 						c.outCh <- &RobotAction{
 							Action: RASeat,
-							Num:    int(seat),
+							Num:    uint(seat),
 						}
 					}
 				})
@@ -107,7 +107,7 @@ func (c *Robot) read() {
 				//fmt.Println("bringin", c.seats, seat)
 				c.outCh <- &RobotAction{
 					Action: RASeat,
-					Num:    int(seat),
+					Num:    uint(seat),
 				}
 			}
 		case SAGame:
@@ -186,7 +186,7 @@ func (c *Robot) read() {
 				}
 			}
 		case SAAction:
-			c.log.Debug("SAAction", zap.Int8("seat", in.Seat), zap.String("action", in.Action2.String()), zap.Int("num", in.Num))
+			c.log.Debug("SAAction", zap.Int8("seat", in.Seat), zap.String("action", in.Action2.String()), zap.Uint("num", in.Num))
 		case SAResult:
 			results := make([]*holdem.Result, 0)
 			_ = json.Unmarshal(in.Payload, &results)
@@ -251,7 +251,7 @@ func (c *Robot) MyAction(bet *BetInfo) *holdem.Bet {
 	case holdem.ActionDefBet:
 		return &holdem.Bet{
 			Action: holdem.ActionDefBet,
-			Num:    rand.Intn(bet.Chip-bet.MinRaise) + bet.MinRaise,
+			Num:    uint(rand.Intn(int(bet.Chip-bet.MinRaise))) + bet.MinRaise,
 		}
 	case holdem.ActionDefCall:
 		return &holdem.Bet{
@@ -261,7 +261,7 @@ func (c *Robot) MyAction(bet *BetInfo) *holdem.Bet {
 	case holdem.ActionDefRaise:
 		return &holdem.Bet{
 			Action: holdem.ActionDefRaise,
-			Num:    rand.Intn(bet.Chip-(bet.CurrentBet-bet.RoundBet+bet.MinRaise)) + bet.CurrentBet - bet.RoundBet + bet.MinRaise,
+			Num:    uint(rand.Intn(int(bet.Chip-(bet.CurrentBet-bet.RoundBet+bet.MinRaise)))) + bet.CurrentBet - bet.RoundBet + bet.MinRaise,
 		}
 	case holdem.ActionDefAllIn:
 		return &holdem.Bet{

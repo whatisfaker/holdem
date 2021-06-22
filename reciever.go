@@ -18,7 +18,7 @@ type Reciever interface {
 	//RoomerGetPublicCard 接收公共牌(牌,谁操作,是否是你操作)
 	RoomerGetPublicCard([]*Card, *Operator, bool)
 	//RoomerGetAction 接收有人动作（按钮位, 位置，动作，金额(如果下注), 是否是你)
-	RoomerGetAction(int8, int8, ActionDef, int, *Operator, bool)
+	RoomerGetAction(int8, int8, ActionDef, uint, *Operator, bool)
 	//RoomerGetBuyInsurance 接收谁购买了保险的信息
 	RoomerGetBuyInsurance(seat int8, buy []*BuyInsurance, round Round)
 	//RoomerGetShowCards 接收亮牌信息
@@ -28,7 +28,7 @@ type Reciever interface {
 	//RoomerKeepSeat 接收有人占座(座位号)
 	RoomerKeepSeat(int8)
 	//PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注),下一个操作者)
-	PlayerActionSuccess(int8, int8, ActionDef, int, *Operator)
+	PlayerActionSuccess(int8, int8, ActionDef, uint, *Operator)
 	//PlayerGetCard 玩家获得自己发到的牌（座位号,牌,发牌顺序,几张牌,下一个操作者是否是你)
 	PlayerGetCard(int8, []*Card, []int8, int8, *StartNewHandInfo, *Operator, bool)
 	//PlayerCanNotBuyInsurance 玩家无法购买保险(座位号,outs数量,回合)
@@ -38,7 +38,7 @@ type Reciever interface {
 	//PlayerBuyInsuranceSuccess 玩家购买保险成功（座位号，金额）
 	PlayerBuyInsuranceSuccess(seat int8, buy []*BuyInsurance)
 	//PlayerBringInSuccess 玩家带入成功
-	PlayerBringInSuccess(seat int8, chip int)
+	PlayerBringInSuccess(seat int8, chip uint)
 	//PlayerJoinSuccess 玩家进入游戏成功
 	PlayerJoinSuccess(UserInfo, *HoldemState)
 	//PlayerLeaveSuccess 玩家离开游戏成功

@@ -10,17 +10,17 @@ import (
 )
 
 type BetInfo struct {
-	Chip       int //你还剩下多少筹码
-	HandBet    int //本手你已经下了多少
-	RoundBet   int //本轮你下了多少
-	CurrentBet int //本轮轮到你现在下注额度多少
-	MinRaise   int //最小加注金额
+	Chip       uint //你还剩下多少筹码
+	HandBet    uint //本手你已经下了多少
+	RoundBet   uint //本轮你下了多少
+	CurrentBet uint //本轮轮到你现在下注额度多少
+	MinRaise   uint //最小加注金额
 }
 
 type ServerAction struct {
 	Action  SA
 	Action2 holdem.ActionDef
-	Num     int
+	Num     uint
 	Seat    int8
 	Payload []byte
 	BetInfo *BetInfo

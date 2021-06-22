@@ -10,7 +10,7 @@ type extOptions struct {
 	insuranceWaitTimeout time.Duration
 	recorder             Recorder
 	isPayToPlay          bool
-	ante                 int
+	ante                 uint
 	medadata             map[string]string
 	autoStart            bool //是否自动开始
 	minPlayers           int8 //最小游戏人数
@@ -60,7 +60,7 @@ func OptionMetadata(metadata map[string]string) HoldemOption {
 	})
 }
 
-func OptionAnte(ante int) HoldemOption {
+func OptionAnte(ante uint) HoldemOption {
 	return newFuncOption(func(o *extOptions) {
 		o.ante = ante
 	})

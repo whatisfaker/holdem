@@ -125,7 +125,7 @@ func (c *rec) RoomerGetShowCards(cds []*holdem.ShowCard) {
 }
 
 //RoomerGetAction 接收有人动作（位置，动作，金额(如果下注))
-func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, num int, op *holdem.Operator, isYourTurn bool) {
+func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, num uint, op *holdem.Operator, isYourTurn bool) {
 	c.ch <- &ServerAction{
 		Action:  SAAction,
 		Action2: action,
@@ -190,12 +190,12 @@ func (c *rec) ErrorOccur(code int, err error) {
 	//c.log.Error("error occur", zap.Error(err))
 	c.ch <- &ServerAction{
 		Action:  SAError,
-		Num:     code,
+		Num:     uint(code),
 		Payload: []byte(err.Error()),
 	}
 }
 
-func (c *rec) PlayerBringInSuccess(seat int8, chip int) {
+func (c *rec) PlayerBringInSuccess(seat int8, chip uint) {
 	c.ch <- &ServerAction{
 		Action: SABringInSuccess,
 		Seat:   seat,
@@ -226,7 +226,7 @@ func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
 }
 
 //PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注))
-func (c *rec) PlayerActionSuccess(bs int8, s int8, act holdem.ActionDef, num int, h *holdem.Operator) {
+func (c *rec) PlayerActionSuccess(bs int8, s int8, act holdem.ActionDef, num uint, h *holdem.Operator) {
 	c.ch <- &ServerAction{
 		Action:  SAMyAction,
 		Action2: act,

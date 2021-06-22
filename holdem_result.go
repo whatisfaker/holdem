@@ -23,10 +23,10 @@ func NewCardResult(card *Card, selected bool) *CardResult {
 type Result struct {
 	SeatNumber      int8
 	Te              PlayType
-	Num             int
+	Num             uint
 	Cards           []*CardResult
 	HandValueType   HandValueType
-	Chip            int
+	Chip            uint
 	InsuranceResult map[Round]*InsuranceResult
 }
 
@@ -58,7 +58,7 @@ func (c *Holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent,
 	results := make(map[int8]*Result)
 	for _, pot := range pots {
 		result := make(map[int8]*Result)
-		l := 0
+		var l uint
 		for _, w := range winners {
 			if _, ok := pot.SeatNumber[w.gameInfo.seatNumber]; ok {
 				l++
@@ -109,7 +109,7 @@ func (c *Holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent,
 
 //calcPot 计算彩池(彩池边池，下注大小从小到大)
 func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
-	mainPot := 0
+	var mainPot uint
 	u := c.button
 	as := make([]*Agent, 0)
 	users := make(map[int8]*Agent)
@@ -137,9 +137,9 @@ func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
 	for _, r := range ps {
 		seats[r.gameInfo.seatNumber] = true
 	}
-	l := len(ps)
+	l := uint(len(ps))
 	pots := make([]*Pot, 0)
-	lastAllIn := 0
+	var lastAllIn uint
 	for i, r := range ps {
 		if r.gameInfo.status == ActionDefAllIn {
 			pot := &Pot{
@@ -174,5 +174,5 @@ type Pot struct {
 	//SeatNumber 参与分配的座位号
 	SeatNumber map[int8]bool
 	//Num 池大小
-	Num int
+	Num uint
 }
