@@ -39,6 +39,10 @@ func (c *Holdem) ForceStandUp(seat int8) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
 	if r, ok := c.players[seat]; ok {
-		r.StandUp()
+		r.gameInfo.needStandUpReason = StandUpGameForce
+		if r.gameInfo.status == ActionDefNone {
+			c.standUp(seat, r, StandUpGameForce)
+			return
+		}
 	}
 }

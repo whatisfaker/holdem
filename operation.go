@@ -17,7 +17,7 @@ type Operator struct {
 	CurrentTableBet uint
 }
 
-func NewOperator(r *Agent, bet uint, minRaise uint) *Operator {
+func newOperator(r *Agent, bet uint, minRaise uint) *Operator {
 	if r == nil {
 		return nil
 	}

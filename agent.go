@@ -204,7 +204,7 @@ func (c *Agent) StandUp() {
 		c.ErrorOccur(ErrCodeNoSeat, errNoSeat)
 		return
 	}
-	c.gameInfo.needStandUp = true
+	c.gameInfo.needStandUpReason = StandUpAction
 	if c.gameInfo.status == ActionDefNone {
 		c.h.directStandUp(c.gameInfo.seatNumber, c)
 		return

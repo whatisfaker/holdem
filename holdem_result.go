@@ -34,7 +34,7 @@ type Result struct {
 func (c *Holdem) showDown(agents []*Agent) ([]*Agent, []*Agent) {
 	th := make(map[int8]*HandValue)
 	for _, r := range agents {
-		r.gameInfo.CalcHandValue(c.publicCards)
+		r.gameInfo.calcHandValue(c.publicCards)
 		th[r.gameInfo.seatNumber] = r.gameInfo.handValue
 	}
 	th = GetMaxHandValueFromTaggedHandValues(th)

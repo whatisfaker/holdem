@@ -212,7 +212,7 @@ func (c *Holdem) directStandUp(i int8, r *Agent) {
 	c.standUp(i, r, StandUpAction)
 }
 
-func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration) {
+func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration, reason int8) {
 	c.log.Debug("delay stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()), zap.Duration("dur", tm))
 	r.recv.PlayerKeepSeat(i)
 	for rr := range c.roomers {
@@ -237,7 +237,7 @@ func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration) {
 		if r.gameInfo.chip == 0 && r.gameInfo.seatNumber == i {
 			c.log.Debug("less chip auto stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
 			c.seatLock.Lock()
-			c.standUp(i, r, StandUpNoChip)
+			c.standUp(i, r, reason)
 			c.seatLock.Unlock()
 		}
 	})
@@ -570,9 +570,9 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 				c.button = u2
 			}
 			//如果要离开直接让他离开
-			if u.gameInfo.needStandUp {
+			if u.gameInfo.needStandUpReason != StandUpNone {
 				c.seatLock.Lock()
-				c.standUp(u.gameInfo.seatNumber, u, StandUpAction)
+				c.standUp(u.gameInfo.seatNumber, u, u.gameInfo.needStandUpReason)
 				c.seatLock.Unlock()
 			}
 			u = u2
@@ -603,7 +603,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		var op *Operator
 		if !roundComplete {
 			next = c.getNextOperator(u)
-			op = NewOperator(next, c.roundBet, c.minRaise)
+			op = newOperator(next, c.roundBet, c.minRaise)
 		}
 		thisAgent := u
 		//稍微延迟告诉客户端可以下注
@@ -662,9 +662,9 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 				c.button = u2
 			}
 			//如果要离开直接让他离开
-			if u.gameInfo.needStandUp {
+			if u.gameInfo.needStandUpReason != StandUpNone {
 				c.seatLock.Lock()
-				c.standUp(u.gameInfo.seatNumber, u, StandUpAction)
+				c.standUp(u.gameInfo.seatNumber, u, u.gameInfo.needStandUpReason)
 				c.seatLock.Unlock()
 			}
 			u = u2
@@ -699,7 +699,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 		var op *Operator
 		if !roundComplete {
 			next = c.getNextOperator(u)
-			op = NewOperator(next, c.roundBet, c.minRaise)
+			op = newOperator(next, c.roundBet, c.minRaise)
 		}
 		//稍微延迟告诉客户端可以下注
 		thisAgent := u
@@ -809,7 +809,7 @@ func (c *Holdem) deal() *Agent {
 	}
 	cur := first
 	firstAg := c.getNextOperator(c.button.nextAgent.nextAgent)
-	op := NewOperator(firstAg, 2*c.sb, 2*c.sb)
+	op := newOperator(firstAg, 2*c.sb, 2*c.sb)
 	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(preflop::waitBet),以免请求早于接收通道开启
 	time.AfterFunc(delaySend, func() {
 		first := c.button.nextAgent
@@ -849,7 +849,7 @@ func (c *Holdem) dealPublicCards(n int, round Round) ([]*Card, *Agent) {
 	cards, _ := c.poker.GetCards(n)
 	c.publicCards = append(c.publicCards, cards...)
 	firstAg := c.getNextOperator(c.button)
-	firstOp := NewOperator(firstAg, 0, 2*c.sb)
+	firstOp := newOperator(firstAg, 0, 2*c.sb)
 	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(flopTurnRiver::waitBet),以免请求早于接收通道开启
 	time.AfterFunc(delaySend, func() {
 		for r := range c.roomers {
@@ -1042,7 +1042,7 @@ func (c *Holdem) gameLoop() {
 		//清理座位用户
 		c.seatLock.Lock()
 		for i, r := range c.players {
-			r.gameInfo.ResetForNextHand()
+			r.gameInfo.resetForNextHand()
 			c.log.Debug("user cancel stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
 			c.standUp(i, r, StandUpGameEnd)
 		}
@@ -1070,15 +1070,15 @@ func (c *Holdem) gameLoop() {
 			waitforbuy := false
 			c.seatLock.Lock()
 			for i, r := range c.players {
-				r.gameInfo.ResetForNextHand()
-				if r.gameInfo.chip == 0 && !r.gameInfo.needStandUp {
+				r.gameInfo.resetForNextHand()
+				if r.gameInfo.chip == 0 && r.gameInfo.needStandUpReason == StandUpNone {
 					waitforbuy = true
-					c.delayStandUp(i, r, c.delayStandUpTimeout)
+					c.delayStandUp(i, r, c.delayStandUpTimeout, StandUpNoChip)
 					continue
 				}
-				if r.gameInfo.needStandUp {
+				if r.gameInfo.needStandUpReason != StandUpNone {
 					c.log.Debug("user stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
-					c.standUp(i, r, StandUpAction)
+					c.standUp(i, r, r.gameInfo.needStandUpReason)
 				}
 			}
 			c.seatLock.Unlock()
@@ -1095,7 +1095,7 @@ func (c *Holdem) gameLoop() {
 		//清理座位用户
 		c.seatLock.Lock()
 		for i, r := range c.players {
-			r.gameInfo.ResetForNextHand()
+			r.gameInfo.resetForNextHand()
 			c.log.Debug("user end stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
 			c.standUp(i, r, StandUpGameEnd)
 		}

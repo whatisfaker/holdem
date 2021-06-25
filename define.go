@@ -19,9 +19,11 @@ const (
 )
 
 const (
-	StandUpNoChip int8 = iota
+	StandUpNone int8 = iota
+	StandUpNoChip
 	StandUpAction
 	StandUpGameEnd
+	StandUpGameForce
 )
 
 func (c Round) String() string {
