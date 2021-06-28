@@ -5,16 +5,17 @@ import (
 )
 
 type extOptions struct {
-	insuranceOpen        bool
-	insuranceOdds        map[int]float64
-	insuranceWaitTimeout time.Duration
-	recorder             Recorder
-	isPayToPlay          bool
-	ante                 uint
-	medadata             map[string]string
-	autoStart            bool //是否自动开始
-	minPlayers           int8 //最小游戏人数
-	delayStandUpTimeout  time.Duration
+	insuranceOpen           bool
+	insuranceOdds           map[int]float64
+	insuranceWaitTimeout    time.Duration
+	recorder                Recorder
+	isPayToPlay             bool
+	ante                    uint
+	medadata                map[string]string
+	autoStart               bool //是否自动开始
+	minPlayers              int8 //最小游戏人数
+	delayStandUpTimeout     time.Duration
+	waitForNotEnoughPlayers time.Duration //人数不够等待时间
 }
 
 type HoldemOption interface {
@@ -76,5 +77,11 @@ func OptionAutoStart(minPlayers int8) HoldemOption {
 func OptionWaitForRebuy(dur time.Duration) HoldemOption {
 	return newFuncOption(func(o *extOptions) {
 		o.delayStandUpTimeout = dur
+	})
+}
+
+func OptionWaitForNotEnoughPlayers(dur time.Duration) HoldemOption {
+	return newFuncOption(func(o *extOptions) {
+		o.waitForNotEnoughPlayers = dur
 	})
 }

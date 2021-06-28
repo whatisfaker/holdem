@@ -6,6 +6,7 @@ const (
 	ErrCodeLessChip = 1001 + iota
 	ErrCodeNotInBetTime
 	ErrCodeSeatTaken
+	ErrCodeTableIsFull
 	ErrCodeNoChip
 	ErrCodeInvalidBetAction
 	ErrCodeInvalidBetNum
@@ -22,6 +23,7 @@ const (
 var (
 	errLessChip              = errors.New("chip is less than 0")
 	errNotInBetTime          = errors.New("it is not in bet time")
+	errTableIsFull           = errors.New("table is full, no empty seat")
 	errSeatTaken             = errors.New("the seat is token by other player")
 	errNoChip                = errors.New("you have less chip")
 	errInvalidBetAction      = errors.New("invalid bet action")

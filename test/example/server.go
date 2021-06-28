@@ -67,19 +67,16 @@ func (c *Server) IsComplete() bool {
 	return c.complete
 }
 
-var id int
-
 func (c *Server) Connect(r *Robot) {
-	id++
 	l := c.log.With(zap.String("te", "agent"))
 	recv := &rec{
 		ch:  r.InCh(),
-		id:  fmt.Sprint(id),
+		id:  r.ID,
 		log: l,
 	}
 	agent := holdem.NewAgent(recv, &player{
-		id:   fmt.Sprintf("id-%d", id),
-		name: fmt.Sprintf("na-%d", id),
+		id:   r.ID,
+		name: fmt.Sprintf("na-%s", r.ID),
 	}, l)
 	a := &agentWrapper{
 		r:     r,
@@ -97,7 +94,8 @@ func (c *agentWrapper) read() {
 		case RABringIn:
 			c.agent.BringIn(o.Num)
 		case RASeat:
-			c.agent.Seated(int8(o.Num))
+			//c.agent.Seated(int8(o.Num))
+			c.agent.Seated()
 		case RAInfo:
 			c.agent.Info()
 		case RABet:

@@ -2,6 +2,7 @@ package example
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -41,6 +42,7 @@ const (
 )
 
 type Robot struct {
+	ID     string
 	seated bool
 	nochip bool
 	inCh   chan *ServerAction
@@ -55,8 +57,9 @@ type RobotAction struct {
 	Bet    *holdem.Bet
 }
 
-func NewRobot(log *zap.Logger) *Robot {
+func NewRobot(id int, log *zap.Logger) *Robot {
 	r := &Robot{
+		ID:     fmt.Sprintf("id-%d", id),
 		log:    log,
 		nochip: true,
 	}
@@ -86,16 +89,17 @@ func (c *Robot) read() {
 	for in := range c.inCh {
 		switch in.Action {
 		case SAError:
-			if in.Num == holdem.ErrCodeSeatTaken {
+			if in.Num == holdem.ErrCodeSeatTaken || in.Num == holdem.ErrCodeTableIsFull {
+				//fmt.Println("robot can not seat", c.ID)
 				c.log.Warn("error ", zap.String("error", string(in.Payload)))
 				time.AfterFunc(time.Second, func() {
-					if len(c.seats) > 0 {
-						seat := c.seats[rand.Intn(len(c.seats))]
-						c.outCh <- &RobotAction{
-							Action: RASeat,
-							Num:    uint(seat),
-						}
+					// if len(c.seats) > 0 {
+					// 	seat := c.seats[rand.Intn(len(c.seats))]
+					c.outCh <- &RobotAction{
+						Action: RASeat,
+						Num:    1,
 					}
+					//}
 				})
 			} else {
 				c.log.Error("error ", zap.String("error", string(in.Payload)))

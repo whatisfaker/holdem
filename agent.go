@@ -173,8 +173,8 @@ func (c *Agent) BringIn(chip uint) {
 	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, chip)
 }
 
-//Seated 坐下
-func (c *Agent) Seated(i int8) {
+//Seated 坐下（不输入座位号,自动寻座)
+func (c *Agent) Seated(i ...int8) {
 	if c.h == nil {
 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
 		return
@@ -191,7 +191,12 @@ func (c *Agent) Seated(i int8) {
 		c.ErrorOccur(ErrCodeAlreadySeated, errAlreadySeated)
 		return
 	}
-	c.h.seated(i, c)
+	if len(i) > 0 {
+		c.h.seated(i[0], c)
+		return
+	}
+	//auto find seat
+	c.h.seated(0, c)
 }
 
 //StandUp 站起来

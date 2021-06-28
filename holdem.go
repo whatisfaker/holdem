@@ -42,44 +42,45 @@ type HoldemState struct {
 }
 
 type Holdem struct {
-	poker                *Poker                              //扑克
-	handNum              uint                                //手数
-	seatCount            int8                                //座位数量
-	playerCount          int8                                //座位上用户数量
-	players              map[int8]*Agent                     //座位上用户字典
-	playingPlayerCount   int8                                //当前游戏玩家数量（座位上游戏的）
-	roomers              map[*Agent]bool                     //参与游戏的玩家（包括旁观）
-	buttonSeat           int8                                //庄家座位号
-	sbSeat               int8                                //小盲座位号
-	bbSeat               int8                                //大盲座位号
-	isPayToPlay          bool                                //是否需要补盲
-	payToPlayMap         map[int8]PlayType                   //补牌的规则
-	button               *Agent                              //庄家玩家
-	waitBetTimeout       time.Duration                       //等待下注的超时时间
-	seatLock             sync.Mutex                          //玩家锁
-	gameStartedLock      int32                               //是否开始原子锁
-	gameStatusCh         chan int8                           //开始通道
-	handStartInfo        *StartNewHandInfo                   //当前一手开局信息
-	sb                   uint                                //小盲
-	nextSb               int                                 //即将修改的小盲
-	ante                 uint                                //前注
-	nextAnte             int                                 //即将修改的前注
-	pot                  uint                                //彩池
-	roundBet             uint                                //当前轮下注额
-	minRaise             uint                                //最小加注量
-	publicCards          []*Card                             //公共牌
-	log                  *zap.Logger                         //日志
-	autoStart            bool                                //是否自动开始
-	minPlayers           int8                                //最小自动开始玩家
-	nextGame             func(*Holdem) (bool, time.Duration) //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
-	insurance            bool                                //是否有保险
-	insuranceOdds        map[int]float64                     //保险赔率
-	insuranceWaitTimeout time.Duration                       //保险等待时间
-	insuranceResult      map[int8]map[Round]*InsuranceResult //保险结果
-	insuranceUsers       []*Agent                            //参与保险的玩家
-	delayStandUpTimeout  time.Duration                       //延迟站起来时间(等待买筹码)
-	meta                 map[string]string                   //额外数据
-	recorder             Recorder                            //记录器
+	poker                   *Poker                              //扑克
+	handNum                 uint                                //手数
+	seatCount               int8                                //座位数量
+	playerCount             int8                                //座位上用户数量
+	players                 map[int8]*Agent                     //座位上用户字典
+	playingPlayerCount      int8                                //当前游戏玩家数量（座位上游戏的）
+	roomers                 map[*Agent]bool                     //参与游戏的玩家（包括旁观）
+	buttonSeat              int8                                //庄家座位号
+	sbSeat                  int8                                //小盲座位号
+	bbSeat                  int8                                //大盲座位号
+	isPayToPlay             bool                                //是否需要补盲
+	payToPlayMap            map[int8]PlayType                   //补牌的规则
+	button                  *Agent                              //庄家玩家
+	waitBetTimeout          time.Duration                       //等待下注的超时时间
+	seatLock                sync.Mutex                          //玩家锁
+	gameStartedLock         int32                               //是否开始原子锁
+	gameStatusCh            chan int8                           //开始通道
+	handStartInfo           *StartNewHandInfo                   //当前一手开局信息
+	sb                      uint                                //小盲
+	nextSb                  int                                 //即将修改的小盲
+	ante                    uint                                //前注
+	nextAnte                int                                 //即将修改的前注
+	pot                     uint                                //彩池
+	roundBet                uint                                //当前轮下注额
+	minRaise                uint                                //最小加注量
+	publicCards             []*Card                             //公共牌
+	log                     *zap.Logger                         //日志
+	autoStart               bool                                //是否自动开始
+	minPlayers              int8                                //最小自动开始玩家
+	nextGame                func(*Holdem) (bool, time.Duration) //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
+	insurance               bool                                //是否有保险
+	insuranceOdds           map[int]float64                     //保险赔率
+	insuranceWaitTimeout    time.Duration                       //保险等待时间
+	insuranceResult         map[int8]map[Round]*InsuranceResult //保险结果
+	insuranceUsers          []*Agent                            //参与保险的玩家
+	delayStandUpTimeout     time.Duration                       //延迟站起来时间(等待买筹码)
+	waitForNotEnoughPlayers time.Duration                       //人数不够继续等待时间
+	meta                    map[string]string                   //额外数据
+	recorder                Recorder                            //记录器
 }
 
 func NewHoldem(
@@ -101,10 +102,11 @@ func NewHoldem(
 		payMap[i] = PlayTypeNormal
 	}
 	exts := &extOptions{
-		insuranceOpen: false,
-		recorder:      newNopRecorder(),
-		isPayToPlay:   false,
-		medadata:      make(map[string]string),
+		insuranceOpen:           false,
+		recorder:                newNopRecorder(),
+		isPayToPlay:             false,
+		medadata:                make(map[string]string),
+		waitForNotEnoughPlayers: 10 * time.Second,
 	}
 	for _, o := range ops {
 		o.apply(exts)
@@ -118,28 +120,29 @@ func NewHoldem(
 		}
 	}
 	h := &Holdem{
-		poker:                NewPoker(),
-		players:              make(map[int8]*Agent),
-		roomers:              make(map[*Agent]bool),
-		publicCards:          make([]*Card, 0, 5),
-		waitBetTimeout:       waitBetTimeout,
-		seatCount:            sc,
-		autoStart:            exts.autoStart,
-		minPlayers:           exts.minPlayers,
-		sb:                   sb,
-		nextSb:               -1,
-		ante:                 exts.ante,
-		nextAnte:             -1,
-		log:                  log,
-		insurance:            exts.insuranceOpen,
-		insuranceOdds:        exts.insuranceOdds,
-		insuranceWaitTimeout: exts.insuranceWaitTimeout,
-		nextGame:             nextGame,
-		isPayToPlay:          exts.isPayToPlay,
-		payToPlayMap:         payMap,
-		recorder:             exts.recorder,
-		delayStandUpTimeout:  exts.delayStandUpTimeout,
-		meta:                 exts.medadata,
+		poker:                   NewPoker(),
+		players:                 make(map[int8]*Agent),
+		roomers:                 make(map[*Agent]bool),
+		publicCards:             make([]*Card, 0, 5),
+		waitBetTimeout:          waitBetTimeout,
+		seatCount:               sc,
+		autoStart:               exts.autoStart,
+		minPlayers:              exts.minPlayers,
+		sb:                      sb,
+		nextSb:                  -1,
+		ante:                    exts.ante,
+		nextAnte:                -1,
+		log:                     log,
+		insurance:               exts.insuranceOpen,
+		insuranceOdds:           exts.insuranceOdds,
+		insuranceWaitTimeout:    exts.insuranceWaitTimeout,
+		nextGame:                nextGame,
+		isPayToPlay:             exts.isPayToPlay,
+		payToPlayMap:            payMap,
+		recorder:                exts.recorder,
+		delayStandUpTimeout:     exts.delayStandUpTimeout,
+		waitForNotEnoughPlayers: exts.waitForNotEnoughPlayers,
+		meta:                    exts.medadata,
 	}
 	go h.gameLoop()
 	return h
@@ -178,9 +181,25 @@ func (c *Holdem) seated(i int8, r *Agent) {
 		return
 	}
 	c.seatLock.Lock()
-	if c.players[i] != nil {
-		r.ErrorOccur(ErrCodeSeatTaken, errSeatTaken)
-		return
+	//自动找座
+	if i == 0 {
+		var idx int8 = 1
+		for ; idx <= c.seatCount; idx++ {
+			if _, ok := c.players[idx]; !ok {
+				i = idx
+			}
+		}
+		if i == 0 {
+			c.seatLock.Unlock()
+			r.ErrorOccur(ErrCodeTableIsFull, errTableIsFull)
+			return
+		}
+	} else {
+		if c.players[i] != nil {
+			c.seatLock.Unlock()
+			r.ErrorOccur(ErrCodeSeatTaken, errSeatTaken)
+			return
+		}
 	}
 	r.gameInfo.seatNumber = i
 	r.gameInfo.te = PlayTypeNormal
@@ -1057,6 +1076,7 @@ func (c *Holdem) gameLoop() {
 		ok := c.buttonPosition()
 		if !ok {
 			c.log.Debug("players are not enough, wait")
+			time.Sleep(c.waitForNotEnoughPlayers)
 			continue
 		}
 		if c.nextSb > 0 {
