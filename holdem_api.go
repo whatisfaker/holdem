@@ -29,9 +29,12 @@ func (c *Holdem) State() *HoldemState {
 	return c.information()
 }
 
-//ChangeSB 修改小盲
-func (c *Holdem) ChangeSB(sb uint) {
-	c.nextSb = sb
+//ChangeBetConfig 修改下注配置（小盲/前注)
+func (c *Holdem) ChangeBetConfig(sb uint, ante ...uint) {
+	c.nextSb = int(sb)
+	if len(ante) > 0 {
+		c.nextAnte = int(ante[0])
+	}
 }
 
 //ForceStandUp 强制让人站起

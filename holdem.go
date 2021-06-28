@@ -61,8 +61,9 @@ type Holdem struct {
 	gameStatusCh         chan int8                           //开始通道
 	handStartInfo        *StartNewHandInfo                   //当前一手开局信息
 	sb                   uint                                //小盲
-	nextSb               uint                                //即将修改的小盲
+	nextSb               int                                 //即将修改的小盲
 	ante                 uint                                //前注
+	nextAnte             int                                 //即将修改的前注
 	pot                  uint                                //彩池
 	roundBet             uint                                //当前轮下注额
 	minRaise             uint                                //最小加注量
@@ -126,7 +127,9 @@ func NewHoldem(
 		autoStart:            exts.autoStart,
 		minPlayers:           exts.minPlayers,
 		sb:                   sb,
+		nextSb:               -1,
 		ante:                 exts.ante,
+		nextAnte:             -1,
 		log:                  log,
 		insurance:            exts.insuranceOpen,
 		insuranceOdds:        exts.insuranceOdds,
@@ -1056,11 +1059,13 @@ func (c *Holdem) gameLoop() {
 			c.log.Debug("players are not enough, wait")
 			continue
 		}
-		if c.nextSb == 0 {
-			c.nextSb = c.sb
+		if c.nextSb > 0 {
+			c.sb = uint(c.nextSb)
+			c.nextSb = -1
 		}
-		if c.nextSb != c.sb {
-			c.sb = c.nextSb
+		if c.nextAnte >= 0 {
+			c.ante = uint(c.nextAnte)
+			c.nextAnte = -1
 		}
 		c.log.Debug("hand start")
 		c.startHand()
