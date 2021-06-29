@@ -401,10 +401,16 @@ func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Dura
 				return
 			}
 		case <-timer.C:
-			c.gameInfo.status = ActionDefFold
+			//超时尝试check
+			c.gameInfo.status = ActionDefCheck
 			rbet = &Bet{
-				Action: ActionDefFold,
+				Action: ActionDefCheck,
 				Auto:   true,
+			}
+			//无法check就fold
+			if !c.isValidBet(rbet, curBet, minBet, round) {
+				rbet.Action = ActionDefFold
+				c.gameInfo.status = ActionDefFold
 			}
 			return
 		}
