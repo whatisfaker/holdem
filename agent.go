@@ -1,7 +1,6 @@
 package holdem
 
 import (
-	"sort"
 	"sync/atomic"
 	"time"
 
@@ -351,28 +350,28 @@ type BetGroup struct {
 	Num int
 }
 
-func (p betSort) GroupBet() []map[int8]bool {
-	sort.Sort(p)
-	var pot map[int8]bool
-	pots := make([]map[int8]bool, 0)
-	var num uint
-	for _, a := range p {
-		if pot == nil {
-			pot = map[int8]bool{a.gameInfo.seatNumber: true}
-			num = a.gameInfo.handBet
-			continue
-		}
-		if a.gameInfo.handBet == num {
-			pot[a.gameInfo.seatNumber] = true
-		} else {
-			pots = append(pots, pot)
-			pot = map[int8]bool{a.gameInfo.seatNumber: true}
-			num = a.gameInfo.handBet
-		}
-	}
-	pots = append(pots, pot)
-	return pots
-}
+// func (p betSort) GroupBet() []map[int8]bool {
+// 	sort.Sort(p)
+// 	var pot map[int8]bool
+// 	pots := make([]map[int8]bool, 0)
+// 	var num uint
+// 	for _, a := range p {
+// 		if pot == nil {
+// 			pot = map[int8]bool{a.gameInfo.seatNumber: true}
+// 			num = a.gameInfo.handBet
+// 			continue
+// 		}
+// 		if a.gameInfo.handBet == num {
+// 			pot[a.gameInfo.seatNumber] = true
+// 		} else {
+// 			pots = append(pots, pot)
+// 			pot = map[int8]bool{a.gameInfo.seatNumber: true}
+// 			num = a.gameInfo.handBet
+// 		}
+// 	}
+// 	pots = append(pots, pot)
+// 	return pots
+// }
 
 func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Duration) (rbet *Bet) {
 	c.enableBet(true)

@@ -262,6 +262,64 @@ func TestHVRoyalFlush(t *testing.T) {
 	assert.Equal(r2.Value() > r1.Value(), true)
 }
 
+func TestCalcPots(t *testing.T) {
+	h := &Holdem{}
+	urs := make([]*Agent, 6)
+	urs[0] = &Agent{
+		gameInfo: &GameInfo{
+			seatNumber: 1,
+			handBet:    1000,
+			status:     ActionDefAllIn,
+		},
+	}
+	urs[1] = &Agent{
+		gameInfo: &GameInfo{
+			seatNumber: 2,
+			handBet:    2000,
+			status:     ActionDefAllIn,
+		},
+	}
+	urs[2] = &Agent{
+		gameInfo: &GameInfo{
+			seatNumber: 3,
+			handBet:    4000,
+			status:     ActionDefAllIn,
+		},
+	}
+	urs[3] = &Agent{
+		gameInfo: &GameInfo{
+			seatNumber: 4,
+			handBet:    4000,
+			status:     ActionDefAllIn,
+		},
+	}
+	urs[4] = &Agent{
+		gameInfo: &GameInfo{
+			seatNumber: 5,
+			handBet:    5000,
+			status:     ActionDefAllIn,
+		},
+	}
+	urs[5] = &Agent{
+		gameInfo: &GameInfo{
+			seatNumber: 6,
+			handBet:    7000,
+			status:     ActionDefAllIn,
+		},
+	}
+	for i := 0; i < len(urs)-1; i++ {
+		urs[i].nextAgent = urs[i+1]
+		urs[i+1].prevAgent = urs[i]
+	}
+	urs[0].prevAgent = urs[len(urs)-1]
+	urs[len(urs)-1].nextAgent = urs[0]
+	h.button = urs[0]
+	pots := h.calcPot(urs)
+	for _, p := range pots {
+		t.Log(p.Num, p.SeatNumber)
+	}
+}
+
 func TestGetOuts(t *testing.T) {
 	publicCards := make([]*Card, 3)
 	publicCards[0], _ = NewCard(5, 3)
@@ -292,13 +350,20 @@ func TestGetOuts(t *testing.T) {
 
 	mp1, mp2 := GetAllOuts(publicCards, mp)
 
-	outs := GetOuts(mp1, mp2, []map[int8]bool{{1: true, 2: true, 3: true, 4: true}})
-	for _, v := range outs {
-		if v.Len > 0 {
-			t.Log(v.Len)
-			for seat, m := range v.Detail {
-				for cd, vv := range m {
-					t.Log(seat, cd, vv)
+	potOuts := GetOuts(mp1, mp2, []*Pot{
+		{
+			SeatNumber: map[int8]bool{1: true, 2: true, 3: true, 4: true},
+			Num:        1000,
+		},
+	})
+	for _, outs := range potOuts {
+		for _, v := range outs.Outs {
+			if v.Len > 0 {
+				t.Log(v.Len)
+				for seat, m := range v.Detail {
+					for cd, vv := range m {
+						t.Log(seat, cd, vv)
+					}
 				}
 			}
 		}

@@ -14,6 +14,7 @@ type UserOut struct {
 }
 
 func (c *Holdem) insuranceStart(users []*Agent, round Round) {
+	//@TODO背保险
 	c.log.Debug(round.String() + " buy insurance begin")
 	cardsMap := make(map[int8][]*Card)
 	us := make(map[int8]*Agent)
@@ -21,18 +22,32 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 		cardsMap[u.gameInfo.seatNumber] = u.gameInfo.cards
 		us[u.gameInfo.seatNumber] = u
 	}
-	_, groups := c.calcPot(users)
+	pots := c.calcPot(users)
 	currentHands, allNextHands := GetAllOuts(c.publicCards, cardsMap)
-	outs := GetOuts(currentHands, allNextHands, groups)
+	leaderOuts := GetOuts(currentHands, allNextHands, pots)
 	grp, _ := errgroup.WithContext(context.Background())
 	ch := make(chan *InsuranceResult, len(users))
 	c.insuranceUsers = make([]*Agent, 0)
-	for _, out := range outs {
-		u := us[out.TargetSeat]
-		o := out
+	for leaderSeat, potOuts := range leaderOuts {
+		u := us[leaderSeat]
+		var insPot *Pot
+		var o *Outs
+		for pot, outs := range potOuts.Outs {
+			if insPot == nil {
+				insPot = pot
+				o = outs
+				continue
+			}
+			//池子人数最少的池子才买保险
+			if len(pot.SeatNumber) > len(insPot.SeatNumber) {
+				insPot = pot
+				o = outs
+			}
+		}
+		//没有赔率，无法购买
 		odds, ok := c.insuranceOdds[o.Len]
 		if !ok {
-			u.recv.PlayerCanNotBuyInsurance(u.gameInfo.seatNumber, out.Len, round)
+			u.recv.PlayerCanNotBuyInsurance(u.gameInfo.seatNumber, o.Len, round)
 			continue
 		}
 		userOuts := make(map[int8][]*UserOut)

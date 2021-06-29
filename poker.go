@@ -100,16 +100,24 @@ func (c *Poker) State() (int, int) {
 }
 
 type Outs struct {
-	TargetSeat int8
-	Len        int
-	Detail     map[int8]map[*Card]*HandValue //seat: card: handValue
+	Len    int
+	Detail map[int8]map[*Card]*HandValue //seat: card: handValue
 }
 
-//GetOuts 通过手牌，和预测手牌，计算每个分组中领先者对应的他人Outs
-func GetOuts(allHands map[int8]*HandValue, allNextHands map[int8]map[*Card]*HandValue, groupSeatsArray []map[int8]bool) []*Outs {
-	ret := make([]*Outs, 0)
-	for _, gp := range groupSeatsArray {
-		groupSeats := gp
+type LeaderOuts struct {
+	//SeatNumber 领先者座位号
+	SeatNumber int8
+	//Outs 对应多个池子的出路
+	Outs map[*Pot]*Outs
+}
+
+//GetOuts 通过当前手牌，和预测手牌，计算每个分组中领先者对应的他人Outs
+func GetOuts(allHands map[int8]*HandValue, allNextHands map[int8]map[*Card]*HandValue, pots []*Pot) map[int8]*LeaderOuts {
+	leaderOuts := make(map[int8]*LeaderOuts)
+	for _, p := range pots {
+		pot := p
+		groupSeats := pot.SeatNumber
+		//存储所有参与当前池(pot)的当前手牌
 		mp := make(map[int8]*HandValue)
 		for s, v := range allHands {
 			if _, ok := groupSeats[s]; ok {
@@ -118,17 +126,21 @@ func GetOuts(allHands map[int8]*HandValue, allNextHands map[int8]map[*Card]*Hand
 				delete(allHands, s)
 			}
 		}
+		//计算领先者
 		max := GetMaxHandValueFromTaggedHandValues(mp)
+		//去除领先者，留下其他人
 		for s := range max {
 			delete(groupSeats, s)
 		}
+		//开始比较
 		for s := range max {
+			//获得领先者的预测下手牌
 			target := allNextHands[s]
 			outs := &Outs{
-				TargetSeat: s,
-				Len:        0,
-				Detail:     make(map[int8]map[*Card]*HandValue),
+				Len:    0,
+				Detail: make(map[int8]map[*Card]*HandValue),
 			}
+			//根据每张可能牌去计算其他人的可能牌比较大小（计算outs)
 			for cd := range target {
 				mp2 := make(map[int8]*HandValue)
 				for os := range groupSeats {
@@ -151,10 +163,22 @@ func GetOuts(allHands map[int8]*HandValue, allNextHands map[int8]map[*Card]*Hand
 					outs.Len++
 				}
 			}
-			ret = append(ret, outs)
+			//归类到返回的领先者outs中（分池子）
+			lo, ok := leaderOuts[s]
+			if ok {
+				lo.Outs[pot] = outs
+			} else {
+				lo = &LeaderOuts{
+					SeatNumber: s,
+					Outs: map[*Pot]*Outs{
+						pot: outs,
+					},
+				}
+			}
+			leaderOuts[s] = lo
 		}
 	}
-	return ret
+	return leaderOuts
 }
 
 //GetAllOuts 获取每一张补牌对应的最大手牌(当前最大手牌,和每发一张牌的最大手牌)

@@ -1,5 +1,7 @@
 package holdem
 
+import "sort"
+
 type CardResult struct {
 	Card     *Card
 	Selected bool
@@ -108,7 +110,7 @@ func (c *Holdem) calcWin(urs []*Agent, pots []*Pot) (map[int8]*Result, []*Agent,
 }
 
 //calcPot 计算彩池(彩池边池，下注大小从小到大)
-func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
+func (c *Holdem) calcPot(urs []*Agent) []*Pot {
 	var mainPot uint
 	u := c.button
 	as := make([]*Agent, 0)
@@ -118,7 +120,7 @@ func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
 		users[r.gameInfo.seatNumber] = r
 	}
 	ps := betSort(as)
-	sortedBet := ps.GroupBet()
+	sort.Sort(ps)
 	for {
 		//不是最终玩家
 		if _, ok := users[u.gameInfo.seatNumber]; !ok {
@@ -142,6 +144,11 @@ func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
 	var lastAllIn uint
 	for i, r := range ps {
 		if r.gameInfo.status == ActionDefAllIn {
+			if r.gameInfo.handBet == lastAllIn {
+				l--
+				delete(seats, r.gameInfo.seatNumber)
+				continue
+			}
 			pot := &Pot{
 				Num: l * (r.gameInfo.handBet - lastAllIn),
 			}
@@ -159,7 +166,7 @@ func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
 			delete(seats, r.gameInfo.seatNumber)
 			continue
 		}
-		mainPot += r.gameInfo.handBet
+		//mainPot += r.gameInfo.handBet
 	}
 	if len(pots) == 0 {
 		pots = append(pots, &Pot{
@@ -167,7 +174,7 @@ func (c *Holdem) calcPot(urs []*Agent) ([]*Pot, []map[int8]bool) {
 			Num:        mainPot,
 		})
 	}
-	return pots, sortedBet
+	return pots
 }
 
 type Pot struct {

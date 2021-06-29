@@ -884,7 +884,7 @@ func (c *Holdem) dealPublicCards(n int, round Round) ([]*Card, *Agent) {
 
 //complexWin 斗牌结算
 func (c *Holdem) complexWin(users []*Agent) {
-	pots, _ := c.calcPot(users)
+	pots := c.calcPot(users)
 	results, _, _ := c.calcWin(users, pots)
 	c.pot = 0
 	ret := make([]*Result, 0)
