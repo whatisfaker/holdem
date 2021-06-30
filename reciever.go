@@ -1,5 +1,7 @@
 package holdem
 
+import "time"
+
 type Reciever interface {
 	//ErrorOccur 接收错误
 	ErrorOccur(int, error)
@@ -26,7 +28,7 @@ type Reciever interface {
 	//RoomerGetResult 接收牌局结果
 	RoomerGetResult([]*Result)
 	//RoomerKeepSeat 接收有人占座(座位号)
-	RoomerKeepSeat(int8)
+	RoomerKeepSeat(int8, time.Duration)
 	//PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注),下一个操作者)
 	PlayerActionSuccess(int8, int8, ActionDef, uint, *Operator)
 	//PlayerGetCard 玩家获得自己发到的牌（座位号,牌,发牌顺序,几张牌,下一个操作者是否是你)
@@ -54,5 +56,5 @@ type Reciever interface {
 	//PlayerStandUp 玩家站起
 	PlayerStandUp(int8, int8)
 	//PlayerKeepSeat 玩家占座(座位号)
-	PlayerKeepSeat(int8)
+	PlayerKeepSeat(int8, time.Duration)
 }

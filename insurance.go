@@ -77,11 +77,13 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 				ch <- r
 			}
 			u.recv.PlayerBuyInsuranceSuccess(u.gameInfo.seatNumber, buy)
-			for rr := range c.roomers {
-				if rr != u {
+			c.seatLock.Lock()
+			for uid, rr := range c.roomers {
+				if uid != u.user.ID() {
 					rr.recv.RoomerGetBuyInsurance(u.gameInfo.seatNumber, buy, round)
 				}
 			}
+			c.seatLock.Unlock()
 			return nil
 		})
 	}

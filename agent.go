@@ -44,6 +44,11 @@ func NewAgent(recv Reciever, user UserInfo, log *zap.Logger) *Agent {
 	return agent
 }
 
+func (c *Agent) replace(rs *Agent) {
+	c.recv = rs.recv
+	c.user = rs.user
+}
+
 type Bet struct {
 	Action ActionDef
 	//Num 这次投入的数量

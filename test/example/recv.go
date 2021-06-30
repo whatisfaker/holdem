@@ -3,6 +3,7 @@ package example
 import (
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/whatisfaker/holdem"
 	"go.uber.org/zap"
@@ -235,7 +236,7 @@ func (c *rec) PlayerActionSuccess(bs int8, s int8, act holdem.ActionDef, num uin
 	}
 }
 
-func (c *rec) PlayerKeepSeat(int8) {
+func (c *rec) PlayerKeepSeat(int8, time.Duration) {
 
 }
 
@@ -254,7 +255,7 @@ func (c *rec) PlayerLeaveSuccess(holdem.UserInfo) {
 
 }
 
-func (c *rec) RoomerKeepSeat(int8) {
+func (c *rec) RoomerKeepSeat(int8, time.Duration) {
 
 }
 func (c *rec) PlayerBuyInsuranceSuccess(seat int8, amount []*holdem.BuyInsurance) {

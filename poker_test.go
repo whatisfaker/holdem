@@ -321,31 +321,31 @@ func TestCalcPots(t *testing.T) {
 }
 
 func TestGetOuts(t *testing.T) {
-	publicCards := make([]*Card, 3)
-	publicCards[0], _ = NewCard(5, 3)
-	publicCards[1], _ = NewCard(7, 3)
-	publicCards[2], _ = NewCard(8, 3)
-	//publicCards[3], _ = NewCard(10, 0)
+	publicCards := make([]*Card, 4)
+	publicCards[0], _ = NewCard(12, 0)
+	publicCards[1], _ = NewCard(7, 1)
+	publicCards[2], _ = NewCard(4, 1)
+	publicCards[3], _ = NewCard(10, 0)
 
 	mp := make(map[int8][]*Card)
 	cards := make([]*Card, 2)
-	cards[0], _ = NewCard(6, 1)
-	cards[1], _ = NewCard(9, 1)
+	cards[0], _ = NewCard(13, 0)
+	cards[1], _ = NewCard(12, 3)
 	mp[1] = cards
 
 	cards = make([]*Card, 2)
-	cards[0], _ = NewCard(5, 0)
-	cards[1], _ = NewCard(5, 2)
+	cards[0], _ = NewCard(5, 1)
+	cards[1], _ = NewCard(6, 1)
 	mp[2] = cards
 
 	cards = make([]*Card, 2)
-	cards[0], _ = NewCard(10, 3)
-	cards[1], _ = NewCard(9, 2)
+	cards[0], _ = NewCard(13, 1)
+	cards[1], _ = NewCard(11, 1)
 	mp[3] = cards
 
 	cards = make([]*Card, 2)
-	cards[0], _ = NewCard(14, 3)
-	cards[1], _ = NewCard(6, 0)
+	cards[0], _ = NewCard(7, 0)
+	cards[1], _ = NewCard(2, 0)
 	mp[4] = cards
 
 	mp1, mp2 := GetAllOuts(publicCards, mp)
@@ -356,13 +356,13 @@ func TestGetOuts(t *testing.T) {
 			Num:        1000,
 		},
 	})
-	for _, outs := range potOuts {
+	for leader, outs := range potOuts {
 		for _, v := range outs.Outs {
 			if v.Len > 0 {
 				t.Log(v.Len)
 				for seat, m := range v.Detail {
 					for cd, vv := range m {
-						t.Log(seat, cd, vv)
+						t.Log(leader, seat, cd, vv)
 					}
 				}
 			}

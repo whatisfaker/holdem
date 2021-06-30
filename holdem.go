@@ -48,7 +48,7 @@ type Holdem struct {
 	playerCount             int8                                //座位上用户数量
 	players                 map[int8]*Agent                     //座位上用户字典
 	playingPlayerCount      int8                                //当前游戏玩家数量（座位上游戏的）
-	roomers                 map[*Agent]bool                     //参与游戏的玩家（包括旁观）
+	roomers                 map[string]*Agent                   //参与游戏的玩家（包括旁观）
 	buttonSeat              int8                                //庄家座位号
 	sbSeat                  int8                                //小盲座位号
 	bbSeat                  int8                                //大盲座位号
@@ -122,7 +122,7 @@ func NewHoldem(
 	h := &Holdem{
 		poker:                   NewPoker(),
 		players:                 make(map[int8]*Agent),
-		roomers:                 make(map[*Agent]bool),
+		roomers:                 make(map[string]*Agent),
 		publicCards:             make([]*Card, 0, 5),
 		waitBetTimeout:          waitBetTimeout,
 		seatCount:               sc,
@@ -148,27 +148,35 @@ func NewHoldem(
 	return h
 }
 
-//Join 加入游戏,并没有坐下
+//Join 加入游戏,并没有坐下(重新进入逻辑)
 func (c *Holdem) join(rs *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	for r := range c.roomers {
-		if r != rs {
+	oldRs, ok := c.roomers[rs.user.ID()]
+	if ok {
+		oldRs.replace(rs)
+		oldRs.recv.PlayerJoinSuccess(rs.user, c.information())
+		c.roomers[rs.user.ID()] = oldRs
+		return
+	}
+	c.roomers[rs.user.ID()] = rs
+	for uid, r := range c.roomers {
+		if uid != rs.user.ID() {
 			r.recv.RoomerJoin(rs.user)
 		}
 	}
-	c.roomers[rs] = true
 	rs.recv.PlayerJoinSuccess(rs.user, c.information())
+
 }
 
 //leave 离开
 func (c *Holdem) leave(rs *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	delete(c.roomers, rs)
+	delete(c.roomers, rs.user.ID())
 	rs.recv.PlayerLeaveSuccess(rs.user)
-	for r := range c.roomers {
-		if r != rs {
+	for uid, r := range c.roomers {
+		if uid != rs.user.ID() {
 			r.recv.RoomerLeave(rs.user)
 		}
 	}
@@ -213,8 +221,8 @@ func (c *Holdem) seated(i int8, r *Agent) {
 	//通知自己坐下了
 	r.recv.PlayerSeatedSuccess(i, r.gameInfo.te)
 	//通知其他人
-	for rr := range c.roomers {
-		if rr != r {
+	for uid, rr := range c.roomers {
+		if uid != r.user.ID() {
 			rr.recv.RoomerSeated(i, r.user, r.gameInfo.te)
 		}
 	}
@@ -236,12 +244,14 @@ func (c *Holdem) directStandUp(i int8, r *Agent) {
 
 func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration, reason int8) {
 	c.log.Debug("delay stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()), zap.Duration("dur", tm))
-	r.recv.PlayerKeepSeat(i)
-	for rr := range c.roomers {
-		if rr != r {
-			rr.recv.RoomerKeepSeat(i)
+	r.recv.PlayerKeepSeat(i, tm)
+	c.seatLock.Lock()
+	for uid, rr := range c.roomers {
+		if uid != r.user.ID() {
+			rr.recv.RoomerKeepSeat(i, tm)
 		}
 	}
+	c.seatLock.Unlock()
 	time.AfterFunc(tm, func() {
 		//去了其他游戏
 		if r.h != c {
@@ -274,8 +284,8 @@ func (c *Holdem) standUp(i int8, r *Agent, reason int8) {
 	//通知自己站起来了
 	r.recv.PlayerStandUp(i, reason)
 	//通知其他人
-	for rr := range c.roomers {
-		if rr != r {
+	for uid, rr := range c.roomers {
+		if uid != r.user.ID() {
 			rr.recv.RoomerStandUp(i, r.user, reason)
 		}
 	}
@@ -631,8 +641,10 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		//稍微延迟告诉客户端可以下注
 		time.AfterFunc(delaySend, func() {
 			thisAgent.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op)
-			for r := range c.roomers {
-				if r != thisAgent {
+			c.seatLock.Lock()
+			defer c.seatLock.Unlock()
+			for uid, r := range c.roomers {
+				if uid != thisAgent.user.ID() {
 					r.recv.RoomerGetAction(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op, r == next)
 				}
 			}
@@ -649,9 +661,11 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 				Cards:      v.gameInfo.cards,
 			})
 		}
-		for r := range c.roomers {
+		c.seatLock.Lock()
+		for _, r := range c.roomers {
 			r.recv.RoomerGetShowCards(scs)
 		}
+		c.seatLock.Unlock()
 	}
 	c.log.Debug(RoundPreFlop.String()+" bet end", zap.Int("left", len(unfoldUsers)), zap.Bool("showcard", showcard))
 	return unfoldUsers, showcard
@@ -727,8 +741,10 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 		thisAgent := u
 		time.AfterFunc(delaySend, func() {
 			thisAgent.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op)
-			for r := range c.roomers {
-				if r != thisAgent {
+			c.seatLock.Lock()
+			defer c.seatLock.Unlock()
+			for uid, r := range c.roomers {
+				if uid != thisAgent.user.ID() {
 					r.recv.RoomerGetAction(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op, r == next)
 				}
 			}
@@ -745,9 +761,11 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 				Cards:      v.gameInfo.cards,
 			})
 		}
-		for r := range c.roomers {
+		c.seatLock.Lock()
+		for _, r := range c.roomers {
 			r.recv.RoomerGetShowCards(scs)
 		}
+		c.seatLock.Unlock()
 	}
 	c.log.Debug(round.String()+" bet end", zap.Int("left", len(unfoldUsers)), zap.Bool("showcard", showcard))
 	return unfoldUsers, showcard
@@ -834,6 +852,8 @@ func (c *Holdem) deal() *Agent {
 	op := newOperator(firstAg, 2*c.sb, 2*c.sb)
 	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(preflop::waitBet),以免请求早于接收通道开启
 	time.AfterFunc(delaySend, func() {
+		c.seatLock.Lock()
+		defer c.seatLock.Unlock()
 		first := c.button.nextAgent
 		cur = first
 		i := 0
@@ -853,7 +873,7 @@ func (c *Holdem) deal() *Agent {
 				break
 			}
 		}
-		for r := range c.roomers {
+		for _, r := range c.roomers {
 			if r.gameInfo == nil {
 				r.recv.RoomerGetCard(seats, int8(cnt), c.handStartInfo, op)
 			}
@@ -874,7 +894,9 @@ func (c *Holdem) dealPublicCards(n int, round Round) ([]*Card, *Agent) {
 	firstOp := newOperator(firstAg, 0, 2*c.sb)
 	//延迟告诉客户端,让服务器可以提前开启等待bet的channel(flopTurnRiver::waitBet),以免请求早于接收通道开启
 	time.AfterFunc(delaySend, func() {
-		for r := range c.roomers {
+		c.seatLock.Lock()
+		defer c.seatLock.Unlock()
+		for _, r := range c.roomers {
 			r.recv.RoomerGetPublicCard(cards, firstOp, firstAg == r)
 		}
 	})
@@ -913,9 +935,11 @@ func (c *Holdem) complexWin(users []*Agent) {
 			break
 		}
 	}
-	for r := range c.roomers {
+	c.seatLock.Lock()
+	for _, r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
+	c.seatLock.Unlock()
 	c.recorder.End(ret)
 	c.log.Debug("cwin", zap.Any("result", ret))
 }
@@ -945,9 +969,11 @@ func (c *Holdem) simpleWin(agent *Agent) {
 			break
 		}
 	}
-	for r := range c.roomers {
+	c.seatLock.Lock()
+	for _, r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
+	c.seatLock.Unlock()
 	c.recorder.End(ret)
 	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.user.ID()), zap.Any("result", ret))
 }
