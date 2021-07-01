@@ -155,8 +155,8 @@ func (c *Holdem) join(rs *Agent) {
 	oldRs, ok := c.roomers[rs.user.ID()]
 	if ok {
 		oldRs.replace(rs)
-		oldRs.recv.PlayerJoinSuccess(rs.user, c.information())
 		c.roomers[rs.user.ID()] = oldRs
+		oldRs.recv.PlayerJoinSuccess(rs.user, c.information())
 		return
 	}
 	c.roomers[rs.user.ID()] = rs

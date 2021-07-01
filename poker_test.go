@@ -392,6 +392,19 @@ func TestPointer(t *testing.T) {
 	t.Log(c.Ad, b.Ad)
 }
 
+func TestPonter2(t *testing.T) {
+	A := &TestAd{Num: 1}
+	B := &TestAd{Num: 2}
+	R := &TestAd2{Ad: A}
+	a := map[int]*TestAd2{1: R}
+	b := map[int]*TestAd2{1: R}
+	t.Log(b[1].Ad.Num)
+	c := a[1]
+	c.Ad = B
+	a[1] = c
+	t.Log(b[1].Ad.Num)
+}
+
 func TestGoRoutine(t *testing.T) {
 	a := []*TestAd{
 		{
