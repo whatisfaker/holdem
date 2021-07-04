@@ -8,7 +8,7 @@ import (
 )
 
 type ShowUser struct {
-	User       UserInfo
+	ID         string
 	SeatNumber int8
 	Chip       uint
 	RoundBet   uint
@@ -20,11 +20,10 @@ type ShowUser struct {
 
 type Agent struct {
 	//	invalid           bool
-	user              UserInfo
 	log               *zap.Logger
 	recv              Reciever
 	h                 *Holdem
-	gameInfo          *GameInfo
+	gameInfo          *gameInfo
 	betCh             chan *Bet
 	insuranceCh       chan []*BuyInsurance
 	atomBetLock       int32
@@ -35,9 +34,8 @@ type Agent struct {
 	fake              bool
 }
 
-func NewAgent(recv Reciever, user UserInfo, log *zap.Logger) *Agent {
+func NewAgent(recv Reciever, log *zap.Logger) *Agent {
 	agent := &Agent{
-		user: user,
 		recv: recv,
 		log:  log,
 	}
@@ -46,7 +44,7 @@ func NewAgent(recv Reciever, user UserInfo, log *zap.Logger) *Agent {
 
 func (c *Agent) replace(rs *Agent) {
 	c.recv = rs.recv
-	c.user = rs.user
+	//c.recv = rs.recv
 }
 
 type Bet struct {
@@ -76,7 +74,7 @@ type InsuranceResult struct {
 }
 
 func (c *Agent) ErrorOccur(a int, e error) {
-	c.log.Error("error", zap.Error(e), zap.String("id", c.user.ID()))
+	c.log.Error("error", zap.Error(e), zap.String("id", c.recv.ID()))
 	c.recv.ErrorOccur(a, e)
 }
 
@@ -91,7 +89,7 @@ func (c *Agent) displayUser() *ShowUser {
 	}
 	if c.showUser == nil {
 		c.showUser = &ShowUser{
-			User: c.user,
+			ID: c.recv.ID(),
 		}
 	}
 	if c.gameInfo == nil {
@@ -125,7 +123,7 @@ func (c *Agent) Info() {
 	s := c.h.State()
 	for k := range s.Seated {
 		p := s.Seated[k]
-		if p.User.ID() == c.user.ID() && p.User.Name() == c.user.Name() {
+		if p.ID == c.recv.ID() {
 			p.Cards = c.gameInfo.cards
 		}
 		s.Seated[k] = p
@@ -168,12 +166,12 @@ func (c *Agent) BringIn(chip uint) {
 		c.gameInfo.bringIn += chip
 		c.gameInfo.chip += chip
 	} else {
-		c.gameInfo = &GameInfo{
+		c.gameInfo = &gameInfo{
 			chip:    chip,
 			bringIn: chip,
 		}
 	}
-	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.user.ID()), zap.Uint("bringin", chip))
+	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.recv.ID()), zap.Uint("bringin", chip))
 	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, chip)
 }
 

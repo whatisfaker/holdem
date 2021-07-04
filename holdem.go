@@ -152,20 +152,20 @@ func NewHoldem(
 func (c *Holdem) join(rs *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	oldRs, ok := c.roomers[rs.user.ID()]
+	oldRs, ok := c.roomers[rs.recv.ID()]
 	if ok {
 		oldRs.replace(rs)
-		c.roomers[rs.user.ID()] = oldRs
-		oldRs.recv.PlayerJoinSuccess(rs.user, c.information())
+		c.roomers[rs.recv.ID()] = oldRs
+		oldRs.recv.PlayerJoinSuccess(rs.recv.ID(), c.information())
 		return
 	}
-	c.roomers[rs.user.ID()] = rs
+	c.roomers[rs.recv.ID()] = rs
 	for uid, r := range c.roomers {
-		if uid != rs.user.ID() {
-			r.recv.RoomerJoin(rs.user)
+		if uid != rs.recv.ID() {
+			r.recv.RoomerJoin(rs.recv.ID())
 		}
 	}
-	rs.recv.PlayerJoinSuccess(rs.user, c.information())
+	rs.recv.PlayerJoinSuccess(rs.recv.ID(), c.information())
 
 }
 
@@ -173,11 +173,11 @@ func (c *Holdem) join(rs *Agent) {
 func (c *Holdem) leave(rs *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	delete(c.roomers, rs.user.ID())
-	rs.recv.PlayerLeaveSuccess(rs.user)
+	delete(c.roomers, rs.recv.ID())
+	rs.recv.PlayerLeaveSuccess(rs.recv.ID())
 	for uid, r := range c.roomers {
-		if uid != rs.user.ID() {
-			r.recv.RoomerLeave(rs.user)
+		if uid != rs.recv.ID() {
+			r.recv.RoomerLeave(rs.recv.ID())
 		}
 	}
 }
@@ -217,13 +217,13 @@ func (c *Holdem) seated(i int8, r *Agent) {
 	if c.isPayToPlay {
 		r.gameInfo.te = c.payToPlayMap[i]
 	}
-	c.log.Debug("user seated", zap.Int8("seat", i), zap.String("na", c.players[i].user.ID()), zap.Int8("te", int8(r.gameInfo.te)))
+	c.log.Debug("user seated", zap.Int8("seat", i), zap.String("na", c.players[i].recv.ID()), zap.Int8("te", int8(r.gameInfo.te)))
 	//通知自己坐下了
 	r.recv.PlayerSeatedSuccess(i, r.gameInfo.te)
 	//通知其他人
 	for uid, rr := range c.roomers {
-		if uid != r.user.ID() {
-			rr.recv.RoomerSeated(i, r.user, r.gameInfo.te)
+		if uid != r.recv.ID() {
+			rr.recv.RoomerSeated(i, r.recv.ID(), r.gameInfo.te)
 		}
 	}
 	c.seatLock.Unlock()
@@ -238,16 +238,16 @@ func (c *Holdem) seated(i int8, r *Agent) {
 func (c *Holdem) directStandUp(i int8, r *Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	c.log.Debug("user direct stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+	c.log.Debug("user direct stand up", zap.Int8("seat", i), zap.String("user", r.recv.ID()))
 	c.standUp(i, r, StandUpAction)
 }
 
 func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration, reason int8) {
-	c.log.Debug("delay stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()), zap.Duration("dur", tm))
+	c.log.Debug("delay stand up", zap.Int8("seat", i), zap.String("user", r.recv.ID()), zap.Duration("dur", tm))
 	r.recv.PlayerKeepSeat(i, tm)
 	c.seatLock.Lock()
 	for uid, rr := range c.roomers {
-		if uid != r.user.ID() {
+		if uid != r.recv.ID() {
 			rr.recv.RoomerKeepSeat(i, tm)
 		}
 	}
@@ -267,7 +267,7 @@ func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration, reason int8) {
 		}
 		//还是空筹码
 		if r.gameInfo.chip == 0 && r.gameInfo.seatNumber == i {
-			c.log.Debug("less chip auto stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+			c.log.Debug("less chip auto stand up", zap.Int8("seat", i), zap.String("user", r.recv.ID()))
 			c.seatLock.Lock()
 			c.standUp(i, r, reason)
 			c.seatLock.Unlock()
@@ -277,7 +277,7 @@ func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration, reason int8) {
 
 //standUp 站起来
 func (c *Holdem) standUp(i int8, r *Agent, reason int8) {
-	//c.log.Debug("standup", zap.Int8("seat", i), zap.Bool("fake", r.fake), zap.String("na", c.players[i].user.ID()), zap.Int8("te", int8(r.gameInfo.te)))
+	//c.log.Debug("standup", zap.Int8("seat", i), zap.Bool("fake", r.fake), zap.String("na", c.players[i].recv.ID()), zap.Int8("te", int8(r.gameInfo.te)))
 	r.gameInfo = nil
 	delete(c.players, i)
 	c.playerCount--
@@ -285,8 +285,8 @@ func (c *Holdem) standUp(i int8, r *Agent, reason int8) {
 	r.recv.PlayerStandUp(i, reason)
 	//通知其他人
 	for uid, rr := range c.roomers {
-		if uid != r.user.ID() {
-			rr.recv.RoomerStandUp(i, r.user, reason)
+		if uid != r.recv.ID() {
+			rr.recv.RoomerStandUp(i, r.recv.ID(), reason)
 		}
 	}
 }
@@ -447,7 +447,7 @@ func (c *Holdem) buttonPosition() bool {
 	}
 	c.handNum++
 	c.recorder.Begin(c.information())
-	c.log.Debug("button position end(true)", zap.Int8("buseat", c.buttonSeat), zap.String("buuser", c.button.user.ID()), zap.Int8("players", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
+	c.log.Debug("button position end(true)", zap.Int8("buseat", c.buttonSeat), zap.String("buuser", c.button.recv.ID()), zap.Int8("players", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 	return true
 }
 
@@ -590,7 +590,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 	u := op
 	var roundComplete, showcard bool
 	var unfoldUsers []*Agent
-	c.log.Debug(RoundPreFlop.String()+" bet begin", zap.Int8("pc", c.playingPlayerCount), zap.Int8("sseat", u.gameInfo.seatNumber), zap.String("suser", u.user.ID()))
+	c.log.Debug(RoundPreFlop.String()+" bet begin", zap.Int8("pc", c.playingPlayerCount), zap.Int8("sseat", u.gameInfo.seatNumber), zap.String("suser", u.recv.ID()))
 	for u != nil {
 		c.log.Debug("wait bet", zap.Int8("seat", u.gameInfo.seatNumber), zap.String("status", u.gameInfo.status.String()), zap.String("round", RoundPreFlop.String()))
 		bet := u.waitBet(c.roundBet, c.minRaise, RoundPreFlop, c.waitBetTimeout)
@@ -644,7 +644,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 			c.seatLock.Lock()
 			defer c.seatLock.Unlock()
 			for uid, r := range c.roomers {
-				if uid != thisAgent.user.ID() {
+				if uid != thisAgent.recv.ID() {
 					r.recv.RoomerGetAction(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op, r == next)
 				}
 			}
@@ -686,7 +686,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 			break
 		}
 	}
-	c.log.Debug(round.String()+" bet begin", zap.Int8("pc", c.playingPlayerCount), zap.Int8("sseat", u.gameInfo.seatNumber), zap.String("suser", u.user.ID()))
+	c.log.Debug(round.String()+" bet begin", zap.Int8("pc", c.playingPlayerCount), zap.Int8("sseat", u.gameInfo.seatNumber), zap.String("suser", u.recv.ID()))
 	for u != nil {
 		c.log.Debug("wait bet", zap.Int8("seat", u.gameInfo.seatNumber), zap.String("status", u.gameInfo.status.String()), zap.String("round", round.String()))
 		bet := u.waitBet(c.roundBet, c.minRaise, round, c.waitBetTimeout)
@@ -744,7 +744,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 			c.seatLock.Lock()
 			defer c.seatLock.Unlock()
 			for uid, r := range c.roomers {
-				if uid != thisAgent.user.ID() {
+				if uid != thisAgent.recv.ID() {
 					r.recv.RoomerGetAction(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op, r == next)
 				}
 			}
@@ -975,7 +975,7 @@ func (c *Holdem) simpleWin(agent *Agent) {
 	}
 	c.seatLock.Unlock()
 	c.recorder.End(ret)
-	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.user.ID()), zap.Any("result", ret))
+	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.recv.ID()), zap.Any("result", ret))
 }
 
 //StartHand 开始新的一手
@@ -1066,7 +1066,7 @@ func (c *Holdem) startHand() {
 }
 
 func fakeAgent(p *Agent) *Agent {
-	ret := NewAgent(p.recv, p.user, p.log)
+	ret := NewAgent(p.recv, p.log)
 	//状态重置
 	p.gameInfo.status = ActionDefNone
 	ret.gameInfo = p.gameInfo
@@ -1091,7 +1091,7 @@ func (c *Holdem) gameLoop() {
 		c.seatLock.Lock()
 		for i, r := range c.players {
 			r.gameInfo.resetForNextHand()
-			c.log.Debug("user cancel stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+			c.log.Debug("user cancel stand up", zap.Int8("seat", i), zap.String("user", r.recv.ID()))
 			c.standUp(i, r, StandUpGameEnd)
 		}
 		c.seatLock.Unlock()
@@ -1128,7 +1128,7 @@ func (c *Holdem) gameLoop() {
 					continue
 				}
 				if r.gameInfo.needStandUpReason != StandUpNone {
-					c.log.Debug("user stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+					c.log.Debug("user stand up", zap.Int8("seat", i), zap.String("user", r.recv.ID()))
 					c.standUp(i, r, r.gameInfo.needStandUpReason)
 				}
 			}
@@ -1147,7 +1147,7 @@ func (c *Holdem) gameLoop() {
 		c.seatLock.Lock()
 		for i, r := range c.players {
 			r.gameInfo.resetForNextHand()
-			c.log.Debug("user end stand up", zap.Int8("seat", i), zap.String("user", r.user.ID()))
+			c.log.Debug("user end stand up", zap.Int8("seat", i), zap.String("user", r.recv.ID()))
 			c.standUp(i, r, StandUpGameEnd)
 		}
 		c.seatLock.Unlock()

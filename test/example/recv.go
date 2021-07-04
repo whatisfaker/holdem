@@ -48,7 +48,7 @@ type rec struct {
 var _ holdem.Reciever = (*rec)(nil)
 
 //RoomerSeated 接收有人坐下
-func (c *rec) RoomerSeated(seat int8, u holdem.UserInfo, payToPlay holdem.PlayType) {
+func (c *rec) RoomerSeated(seat int8, u string, payToPlay holdem.PlayType) {
 	c.ch <- &ServerAction{
 		Action: SASeated,
 		Seat:   seat,
@@ -64,7 +64,7 @@ func (c *rec) RoomerGameInformation(h *holdem.HoldemState) {
 	}
 }
 
-func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.HoldemState) {
+func (c *rec) PlayerJoinSuccess(userinfo string, h *holdem.HoldemState) {
 	seats := h.EmptySeats
 	b, _ := json.Marshal(seats)
 	c.ch <- &ServerAction{
@@ -74,7 +74,7 @@ func (c *rec) PlayerJoinSuccess(userinfo holdem.UserInfo, h *holdem.HoldemState)
 }
 
 //RoomerRoomerStandUp
-func (c *rec) RoomerStandUp(seat int8, u holdem.UserInfo, reason int8) {
+func (c *rec) RoomerStandUp(seat int8, u string, reason int8) {
 	// c.ch <- &ServerAction{
 	// 	Action: SAStandUp,
 	// 	Seat:   seat,
@@ -241,17 +241,17 @@ func (c *rec) PlayerKeepSeat(int8, time.Duration) {
 }
 
 //RoomerJoin 接收有人进入游戏
-func (c *rec) RoomerJoin(holdem.UserInfo) {
+func (c *rec) RoomerJoin(string) {
 
 }
 
 //RoomerLeave 接收有人离开游戏
-func (c *rec) RoomerLeave(holdem.UserInfo) {
+func (c *rec) RoomerLeave(string) {
 
 }
 
 //PlayerLeavSuccesse 接收有人离开游戏
-func (c *rec) PlayerLeaveSuccess(holdem.UserInfo) {
+func (c *rec) PlayerLeaveSuccess(string) {
 
 }
 
@@ -277,26 +277,30 @@ func (c *rec) PlayerStandUp(seat int8, reason int8) {
 	}
 }
 
-type player struct {
-	id     string
-	name   string
-	avatar string
-}
-
-var _ holdem.UserInfo = (*player)(nil)
-
-func (c *player) Name() string {
-	return c.name
-}
-
-func (c *player) Avatar() string {
-	return c.avatar
-}
-
-func (c *player) ID() string {
+func (c *rec) ID() string {
 	return c.id
 }
 
-func (c *player) Info() map[string]string {
-	return nil
-}
+// type player struct {
+// 	id     string
+// 	name   string
+// 	avatar string
+// }
+
+// var _ string = (*player)(nil)
+
+// func (c *player) Name() string {
+// 	return c.name
+// }
+
+// func (c *player) Avatar() string {
+// 	return c.avatar
+// }
+
+// func (c *player) ID() string {
+// 	return c.id
+// }
+
+// func (c *player) Info() map[string]string {
+// 	return nil
+// }

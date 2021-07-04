@@ -266,42 +266,42 @@ func TestCalcPots(t *testing.T) {
 	h := &Holdem{}
 	urs := make([]*Agent, 6)
 	urs[0] = &Agent{
-		gameInfo: &GameInfo{
+		gameInfo: &gameInfo{
 			seatNumber: 1,
 			handBet:    1000,
 			status:     ActionDefAllIn,
 		},
 	}
 	urs[1] = &Agent{
-		gameInfo: &GameInfo{
+		gameInfo: &gameInfo{
 			seatNumber: 2,
 			handBet:    2000,
 			status:     ActionDefAllIn,
 		},
 	}
 	urs[2] = &Agent{
-		gameInfo: &GameInfo{
+		gameInfo: &gameInfo{
 			seatNumber: 3,
 			handBet:    4000,
 			status:     ActionDefAllIn,
 		},
 	}
 	urs[3] = &Agent{
-		gameInfo: &GameInfo{
+		gameInfo: &gameInfo{
 			seatNumber: 4,
 			handBet:    4000,
 			status:     ActionDefAllIn,
 		},
 	}
 	urs[4] = &Agent{
-		gameInfo: &GameInfo{
+		gameInfo: &gameInfo{
 			seatNumber: 5,
 			handBet:    5000,
 			status:     ActionDefAllIn,
 		},
 	}
 	urs[5] = &Agent{
-		gameInfo: &GameInfo{
+		gameInfo: &gameInfo{
 			seatNumber: 6,
 			handBet:    7000,
 			status:     ActionDefAllIn,

@@ -3,18 +3,20 @@ package holdem
 import "time"
 
 type Reciever interface {
+	//ID 用户识别
+	ID() string
 	//ErrorOccur 接收错误
 	ErrorOccur(int, error)
 	//RoomerGameInformation 游戏信息
 	RoomerGameInformation(*HoldemState)
 	//RoomerJoin 接收有人进入游戏
-	RoomerJoin(UserInfo)
+	RoomerJoin(string)
 	//RoomerLeave 接收有人离开游戏
-	RoomerLeave(UserInfo)
+	RoomerLeave(string)
 	//RoomerSeated 接收有人坐下
-	RoomerSeated(int8, UserInfo, PlayType)
+	RoomerSeated(int8, string, PlayType)
 	//RoomerRoomerStandUp
-	RoomerStandUp(int8, UserInfo, int8)
+	RoomerStandUp(int8, string, int8)
 	//RoomerGetCard 接收有人收到牌（位置,牌数量,操作者)
 	RoomerGetCard([]int8, int8, *StartNewHandInfo, *Operator)
 	//RoomerGetPublicCard 接收公共牌(牌,谁操作,是否是你操作)
@@ -42,9 +44,9 @@ type Reciever interface {
 	//PlayerBringInSuccess 玩家带入成功
 	PlayerBringInSuccess(seat int8, chip uint)
 	//PlayerJoinSuccess 玩家进入游戏成功
-	PlayerJoinSuccess(UserInfo, *HoldemState)
+	PlayerJoinSuccess(string, *HoldemState)
 	//PlayerLeaveSuccess 玩家离开游戏成功
-	PlayerLeaveSuccess(UserInfo)
+	PlayerLeaveSuccess(string)
 	//PlayerSeatedSuccess 玩家坐下成功(补盲状态)
 	PlayerSeatedSuccess(int8, PlayType)
 	//PlayerCanPayToPlay 玩家可以补盲了

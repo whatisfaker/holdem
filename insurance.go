@@ -79,7 +79,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 			u.recv.PlayerBuyInsuranceSuccess(u.gameInfo.seatNumber, buy)
 			c.seatLock.Lock()
 			for uid, rr := range c.roomers {
-				if uid != u.user.ID() {
+				if uid != u.recv.ID() {
 					rr.recv.RoomerGetBuyInsurance(u.gameInfo.seatNumber, buy, round)
 				}
 			}

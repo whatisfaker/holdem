@@ -23,14 +23,7 @@ func (c PlayType) String() string {
 	}
 }
 
-type UserInfo interface {
-	ID() string
-	Name() string
-	Avatar() string
-	Info() map[string]string
-}
-
-type GameInfo struct {
+type gameInfo struct {
 	seatNumber        int8
 	status            ActionDef
 	needStandUpReason int8 //需要离开
@@ -46,7 +39,7 @@ type GameInfo struct {
 	insurance         map[int8]*BuyInsurance //CardValue: buy
 }
 
-func (c *GameInfo) calcHandValue(pc []*Card) {
+func (c *gameInfo) calcHandValue(pc []*Card) {
 	if c.handValue != nil {
 		return
 	}
@@ -63,7 +56,7 @@ func (c *GameInfo) calcHandValue(pc []*Card) {
 	c.cardResults = append(c.cardResults, NewCardResult(c.cards[1], mp[6]))
 }
 
-func (c *GameInfo) resetForNextHand() {
+func (c *gameInfo) resetForNextHand() {
 	c.status = ActionDefNone
 	c.roundBet = 0
 	c.handBet = 0

@@ -74,10 +74,7 @@ func (c *Server) Connect(r *Robot) {
 		id:  r.ID,
 		log: l,
 	}
-	agent := holdem.NewAgent(recv, &player{
-		id:   r.ID,
-		name: fmt.Sprintf("na-%s", r.ID),
-	}, l)
+	agent := holdem.NewAgent(recv, l)
 	a := &agentWrapper{
 		r:     r,
 		agent: agent,
