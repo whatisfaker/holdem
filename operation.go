@@ -1,6 +1,8 @@
 package holdem
 
 type Operator struct {
+	//ID
+	ID string
 	//SeatNumber 座位号
 	SeatNumber int8
 	//Chip 手上筹码
@@ -22,6 +24,7 @@ func newOperator(r *Agent, bet uint, minRaise uint) *Operator {
 		return nil
 	}
 	return &Operator{
+		ID:              r.recv.ID(),
 		SeatNumber:      r.gameInfo.seatNumber,
 		Chip:            r.gameInfo.chip,
 		BringIn:         r.gameInfo.bringIn,
