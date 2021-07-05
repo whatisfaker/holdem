@@ -23,22 +23,26 @@ type StartNewHandInfo struct {
 	PayToPlay []int8
 }
 
+type HoldemBase struct {
+	Ante       uint
+	SmallBlind uint
+	BigBlind   uint
+	Metadata   map[string]interface{}
+	HandNum    uint
+	SBSeat     int8
+	BBSeat     int8
+	SeatCount  int8
+	ButtonSeat int8
+	GameStatus int8
+}
+
 type HoldemState struct {
-	Ante        uint
-	SmallBlind  uint
-	SBSeat      int8
-	BigBlind    uint
-	BBSeat      int8
-	SeatCount   int8
+	*HoldemBase
 	Seated      []*ShowUser
 	EmptySeats  []int8
-	ButtonSeat  int8
 	Pot         uint
-	GameStatus  int8
-	HandNum     uint
 	PublicCards []*Card
 	Onlines     uint
-	Metadata    map[string]interface{}
 }
 
 type Holdem struct {
@@ -295,6 +299,21 @@ func (c *Holdem) status() int8 {
 	return int8(v)
 }
 
+func (c *Holdem) base() *HoldemBase {
+	return &HoldemBase{
+		Ante:       c.ante,
+		SmallBlind: c.sb,
+		SBSeat:     c.sbSeat,
+		BigBlind:   c.sb * 2,
+		BBSeat:     c.bbSeat,
+		SeatCount:  c.seatCount,
+		ButtonSeat: c.buttonSeat,
+		GameStatus: c.status(),
+		HandNum:    c.handNum,
+		Metadata:   c.meta,
+	}
+}
+
 //Information 游戏信息
 func (c *Holdem) information() *HoldemState {
 	players := make([]*ShowUser, 0)
@@ -312,21 +331,12 @@ func (c *Holdem) information() *HoldemState {
 		players = append(players, v.displayUser())
 	}
 	return &HoldemState{
-		Ante:        c.ante,
-		SmallBlind:  c.sb,
-		SBSeat:      c.sbSeat,
-		BigBlind:    c.sb * 2,
-		BBSeat:      c.bbSeat,
-		SeatCount:   c.seatCount,
+		HoldemBase:  c.base(),
 		Seated:      players,
 		EmptySeats:  emptySeats,
-		ButtonSeat:  c.buttonSeat,
 		Pot:         c.pot,
-		GameStatus:  c.status(),
-		HandNum:     c.handNum,
 		PublicCards: c.publicCards,
 		Onlines:     uint(len(c.roomers)),
-		Metadata:    c.meta,
 	}
 }
 
@@ -471,7 +481,7 @@ func (c *Holdem) doAnte() {
 			c.pot += c.ante
 			u.gameInfo.chip -= c.ante
 			u.gameInfo.status = ActionDefAnte
-			c.recorder.Ante(c.meta, u.gameInfo.seatNumber, u.gameInfo.chip, c.ante)
+			c.recorder.Ante(c.base(), u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, c.ante)
 			c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.ante))
 			u = u.nextAgent
 			if u == c.button {
@@ -481,7 +491,7 @@ func (c *Holdem) doAnte() {
 		}
 		c.handStartInfo.AnteAllIns = append(c.handStartInfo.AnteAllIns, u.gameInfo.seatNumber)
 		c.pot += u.gameInfo.chip
-		c.recorder.Ante(c.meta, u.gameInfo.seatNumber, 0, u.gameInfo.chip)
+		c.recorder.Ante(c.base(), u.gameInfo.seatNumber, u.recv.ID(), 0, u.gameInfo.chip)
 		u.gameInfo.chip = 0
 		u.gameInfo.status = ActionDefAllIn
 		c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.chip))
@@ -513,7 +523,7 @@ func (c *Holdem) smallBlind() {
 			Action: ActionDefSB,
 			Num:    c.sb,
 		}
-		c.recorder.Action(c.meta, RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefSB, c.sb)
+		c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, ActionDefSB, c.sb)
 		c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb))
 		return
 	}
@@ -527,7 +537,7 @@ func (c *Holdem) smallBlind() {
 		Action: ActionDefAllIn,
 		Num:    u.gameInfo.roundBet,
 	}
-	c.recorder.Action(c.meta, RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
+	c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
 	c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.roundBet))
 }
 
@@ -548,7 +558,7 @@ func (c *Holdem) bigBlind() {
 			Action: ActionDefBB,
 			Num:    c.sb * 2,
 		}
-		c.recorder.Action(c.meta, RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefBB, 2*c.sb)
+		c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, ActionDefBB, 2*c.sb)
 		c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb*2))
 		return
 	}
@@ -562,7 +572,7 @@ func (c *Holdem) bigBlind() {
 		Action: ActionDefAllIn,
 		Num:    u.gameInfo.roundBet,
 	}
-	c.recorder.Action(c.meta, RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
+	c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
 	c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.roundBet))
 }
 
@@ -578,7 +588,7 @@ func (c *Holdem) payToPlay() {
 			u.gameInfo.te = PlayTypeNormal
 			c.handStartInfo.PayToPlay = append(c.handStartInfo.PayToPlay, u.gameInfo.seatNumber)
 			//补盲
-			c.recorder.Action(c.meta, RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, ActionDefBB, 2*c.sb)
+			c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, ActionDefBB, 2*c.sb)
 			c.log.Debug("pay to play", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb*2))
 		}
 		u = u.nextAgent
@@ -634,7 +644,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 			c.log.Error("incorrect action", zap.String("action", bet.Action.String()))
 			panic("incorrect action")
 		}
-		c.recorder.Action(c.meta, RoundPreFlop, u.gameInfo.seatNumber, u.gameInfo.chip, bet.Action, bet.Num)
+		c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, bet.Action, bet.Num)
 		roundComplete, unfoldUsers, showcard = c.checkRoundComplete()
 		var next *Agent
 		var op *Operator
@@ -734,7 +744,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 			c.log.Error("incorrect action", zap.Int8("action", int8(bet.Action)))
 			panic("incorrect action")
 		}
-		c.recorder.Action(c.meta, round, u.gameInfo.seatNumber, u.gameInfo.chip, bet.Action, bet.Num)
+		c.recorder.Action(c.base(), round, u.gameInfo.seatNumber, u.recv.ID(), u.gameInfo.chip, bet.Action, bet.Num)
 		roundComplete, unfoldUsers, showcard = c.checkRoundComplete()
 		var next *Agent
 		var op *Operator
@@ -944,8 +954,9 @@ func (c *Holdem) complexWin(users []*Agent) {
 	for _, r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
+	c.recorder.HandEnd(c.information(), ret)
 	c.seatLock.Unlock()
-	c.recorder.HandEnd(c.meta, ret)
+
 	c.log.Debug("cwin", zap.Any("result", ret))
 }
 
@@ -978,8 +989,8 @@ func (c *Holdem) simpleWin(agent *Agent) {
 	for _, r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
+	c.recorder.HandEnd(c.information(), ret)
 	c.seatLock.Unlock()
-	c.recorder.HandEnd(c.meta, ret)
 	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.recv.ID()), zap.Any("result", ret))
 }
 
@@ -1103,7 +1114,7 @@ func (c *Holdem) gameLoop() {
 		return
 	}
 	c.log.Debug("game start")
-	c.recorder.GameStart(c.meta)
+	c.recorder.GameStart(c.base())
 	for {
 		ok := c.buttonPosition()
 		if !ok {
@@ -1157,7 +1168,7 @@ func (c *Holdem) gameLoop() {
 			c.standUp(i, r, StandUpGameEnd)
 		}
 		c.seatLock.Unlock()
-		c.recorder.GameEnd(c.meta)
+		c.recorder.GameEnd(c.base())
 		c.log.Debug("game end")
 		return
 	}
