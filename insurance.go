@@ -111,9 +111,9 @@ func (c *Holdem) insuranceEnd(card *Card, round Round) {
 		if ok {
 			outsLen := c.insuranceResult[u.gameInfo.seatNumber][round].Outs
 			c.insuranceResult[u.gameInfo.seatNumber][round].Earn = float64(ins.Num) * c.insuranceOdds[outsLen]
-			c.recorder.InsureResult(round, u.gameInfo.seatNumber, cost, c.insuranceResult[u.gameInfo.seatNumber][round].Earn)
+			c.recorder.InsureResult(c.meta, round, u.gameInfo.seatNumber, cost, c.insuranceResult[u.gameInfo.seatNumber][round].Earn)
 		} else {
-			c.recorder.InsureResult(round, u.gameInfo.seatNumber, cost, 0)
+			c.recorder.InsureResult(c.meta, round, u.gameInfo.seatNumber, cost, 0)
 		}
 	}
 }

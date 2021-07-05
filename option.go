@@ -11,7 +11,7 @@ type extOptions struct {
 	recorder                Recorder
 	isPayToPlay             bool
 	ante                    uint
-	medadata                map[string]string
+	medadata                map[string]interface{}
 	autoStart               bool //是否自动开始
 	minPlayers              int8 //最小游戏人数
 	delayStandUpTimeout     time.Duration
@@ -49,13 +49,14 @@ func OptionCustomRecorder(rc Recorder) HoldemOption {
 	})
 }
 
-func OptionPayToWin() HoldemOption {
+//OptionPayToPlay 开启补盲
+func OptionPayToPlay() HoldemOption {
 	return newFuncOption(func(o *extOptions) {
 		o.isPayToPlay = true
 	})
 }
 
-func OptionMetadata(metadata map[string]string) HoldemOption {
+func OptionMetadata(metadata map[string]interface{}) HoldemOption {
 	return newFuncOption(func(o *extOptions) {
 		o.medadata = metadata
 	})

@@ -59,7 +59,7 @@ func NewServer(from time.Time, to time.Time, count uint, log *zap.Logger) *Serve
 	for i := 1; i < 30; i++ {
 		mp[i] = rand.Float64() * 100
 	}
-	s.h = holdem.NewHoldem(9, 100, 20*time.Second, nextGame, log.With(zap.String("te", "server")), holdem.OptionPayToWin(), holdem.OptionInsurance(mp, 10*time.Second), holdem.OptionAutoStart(2))
+	s.h = holdem.NewHoldem(9, 100, 20*time.Second, nextGame, log.With(zap.String("te", "server")), holdem.OptionPayToPlay(), holdem.OptionInsurance(mp, 10*time.Second), holdem.OptionAutoStart(2))
 	return s
 }
 
