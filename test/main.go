@@ -12,7 +12,7 @@ func main() {
 	sl := example.NewLogger("debug", os.Stdout)
 	//sl := zap.NewNop()
 	s := example.NewServer(time.Now(), time.Now().Add(1*time.Minute), 2, sl)
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 12; i++ {
 		//l := example.NewLogger("debug", os.Stdout)
 		l := zap.NewNop()
 		// // if i == 0 {

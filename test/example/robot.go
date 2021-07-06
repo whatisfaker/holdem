@@ -195,11 +195,11 @@ func (c *Robot) read() {
 			results := make([]*holdem.Result, 0)
 			_ = json.Unmarshal(in.Payload, &results)
 			c.log.Debug("SAResult", zap.String("result", string(in.Payload)))
-			if c.seated {
-				c.outCh <- &RobotAction{
-					Action: RAStandUp,
-				}
-			}
+			// if c.seated {
+			// 	c.outCh <- &RobotAction{
+			// 		Action: RAStandUp,
+			// 	}
+			// }
 		}
 	}
 

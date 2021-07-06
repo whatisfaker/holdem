@@ -48,12 +48,13 @@ func NewServer(from time.Time, to time.Time, count uint, log *zap.Logger) *Serve
 		hands:    count,
 		complete: false,
 	}
-	nextGame := func(h *holdem.Holdem) (bool, time.Duration) {
+	nextGame := func(h *holdem.Holdem) bool {
 		if h.State().HandNum >= count {
 			s.complete = true
-			return false, 0
+			return false
 		}
-		return true, 10 * time.Second
+		time.Sleep(5 * time.Second)
+		return true
 	}
 	mp := make(map[int]float64)
 	for i := 1; i < 30; i++ {

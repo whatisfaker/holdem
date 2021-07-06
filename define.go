@@ -24,6 +24,7 @@ const (
 	StandUpAction
 	StandUpGameEnd
 	StandUpGameForce
+	StandUpGameExchange
 )
 
 func (c Round) String() string {

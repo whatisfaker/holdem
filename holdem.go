@@ -75,7 +75,7 @@ type Holdem struct {
 	log                     *zap.Logger                         //日志
 	autoStart               bool                                //是否自动开始
 	minPlayers              int8                                //最小自动开始玩家
-	nextGame                func(*Holdem) (bool, time.Duration) //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
+	nextGame                func(*Holdem) bool                  //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
 	insurance               bool                                //是否有保险
 	insuranceOdds           map[int]float64                     //保险赔率
 	insuranceWaitTimeout    time.Duration                       //保险等待时间
@@ -91,13 +91,13 @@ func NewHoldem(
 	sc int8, //座位数
 	sb uint, //小盲
 	waitBetTimeout time.Duration, //等待下注超时时间
-	nextGame func(*Holdem) (bool, time.Duration), //是否继续下一手判断/等待时间
+	nextGame func(*Holdem) bool, //是否继续下一手判断/等待时间
 	log *zap.Logger, //日志
 	ops ...HoldemOption,
 ) *Holdem {
 	if nextGame == nil {
-		nextGame = func(*Holdem) (bool, time.Duration) {
-			return false, 0
+		nextGame = func(*Holdem) bool {
+			return true
 		}
 	}
 	payMap := make(map[int8]PlayType)
@@ -229,7 +229,7 @@ func (c *Holdem) seated(i int8, r *Agent) {
 	}
 	c.seatLock.Unlock()
 	if c.status() == GameStatusNotStart && c.autoStart && c.playerCount >= c.minPlayers {
-		if ok, _ := c.nextGame(c); ok {
+		if ok := c.nextGame(c); ok {
 			c.Start()
 		}
 	}
@@ -246,13 +246,11 @@ func (c *Holdem) directStandUp(i int8, r *Agent) {
 func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration, reason int8) {
 	c.log.Debug("delay stand up", zap.Int8("seat", i), zap.String("user", r.ID()), zap.Duration("dur", tm))
 	r.recv.PlayerKeepSeat(i, tm)
-	c.seatLock.Lock()
 	for uid, rr := range c.roomers {
 		if uid != r.ID() {
 			rr.recv.RoomerKeepSeat(i, tm)
 		}
 	}
-	c.seatLock.Unlock()
 	time.AfterFunc(tm, func() {
 		//去了其他游戏
 		if r.h != c {
@@ -957,7 +955,6 @@ func (c *Holdem) complexWin(users []*Agent) {
 	}
 	c.recorder.HandEnd(c.information(), ret)
 	c.seatLock.Unlock()
-
 	c.log.Debug("cwin", zap.Any("result", ret))
 }
 
@@ -1133,31 +1130,38 @@ func (c *Holdem) gameLoop() {
 		}
 		c.log.Debug("hand start")
 		c.startHand()
-		next, wait := c.nextGame(c)
+		//清理座位用户
+		waitforbuy := false
+		bt := time.Now()
+		c.seatLock.Lock()
+		for i, r := range c.players {
+			if r.gameInfo.chip == 0 && r.gameInfo.needStandUpReason == StandUpNone {
+				waitforbuy = true
+				c.delayStandUp(i, r, c.delayStandUpTimeout, StandUpNoChip)
+				continue
+			}
+			if r.gameInfo.needStandUpReason != StandUpNone {
+				c.log.Debug("user stand up", zap.Int8("seat", i), zap.String("user", r.ID()))
+				c.standUp(i, r, r.gameInfo.needStandUpReason)
+			}
+		}
+		c.seatLock.Unlock()
+		c.log.Debug("hand end")
+		next := c.nextGame(c)
 		if next {
 			//清理座位用户
-			waitforbuy := false
-			c.seatLock.Lock()
-			for i, r := range c.players {
-				r.gameInfo.resetForNextHand()
-				if r.gameInfo.chip == 0 && r.gameInfo.needStandUpReason == StandUpNone {
-					waitforbuy = true
-					c.delayStandUp(i, r, c.delayStandUpTimeout, StandUpNoChip)
-					continue
-				}
-				if r.gameInfo.needStandUpReason != StandUpNone {
-					c.log.Debug("user stand up", zap.Int8("seat", i), zap.String("user", r.ID()))
-					c.standUp(i, r, r.gameInfo.needStandUpReason)
-				}
-			}
-			c.seatLock.Unlock()
 			c.log.Debug("hand end")
 			if waitforbuy {
-				if c.delayStandUpTimeout > wait-500*time.Millisecond {
-					wait = c.delayStandUpTimeout + 500*time.Millisecond
+				wait := time.Since(bt) - c.delayStandUpTimeout - 500*time.Millisecond
+				if wait > 0 {
+					time.Sleep(wait)
 				}
 			}
-			time.Sleep(wait)
+			c.seatLock.Lock()
+			for _, r := range c.players {
+				r.gameInfo.resetForNextHand()
+			}
+			c.seatLock.Unlock()
 			continue
 		}
 		atomic.StoreInt32(&c.gameStartedLock, int32(GameStatusComplete))

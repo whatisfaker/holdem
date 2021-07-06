@@ -49,3 +49,30 @@ func (c *Holdem) ForceStandUp(seat int8) {
 		}
 	}
 }
+
+//ForcePlayerStandUp
+func (c *Holdem) ForcePlayerStandUp(count uint8) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	buIdx := c.bbSeat + 1
+	if buIdx > c.seatCount {
+		buIdx = 1
+	}
+	num := count
+	var i int8
+	//从大盲位开始站起
+	for i = 0; i < c.seatCount; i++ {
+		seat := ((i + buIdx - 1) % c.seatCount) + 1
+		r, ok := c.players[seat]
+		if ok {
+			r.gameInfo.needStandUpReason = StandUpGameExchange
+			if r.gameInfo.status == ActionDefNone {
+				c.standUp(seat, r, StandUpGameForce)
+			}
+			num--
+			if num == 0 {
+				return
+			}
+		}
+	}
+}
