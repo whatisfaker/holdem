@@ -48,8 +48,8 @@ func NewServer(from time.Time, to time.Time, count uint, log *zap.Logger) *Serve
 		hands:    count,
 		complete: false,
 	}
-	nextGame := func(h *holdem.Holdem) bool {
-		if h.State().HandNum >= count {
+	nextGame := func(h *holdem.HoldemState) bool {
+		if h.HandNum >= count {
 			s.complete = true
 			return false
 		}
