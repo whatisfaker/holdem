@@ -38,14 +38,20 @@ func (c *Holdem) ChangeBetConfig(sb uint, ante ...uint) {
 }
 
 //ForceStandUp 强制让人站起
-func (c *Holdem) ForceStandUp(seat int8) {
+func (c *Holdem) ForceStandUp(id ...string) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	if r, ok := c.players[seat]; ok {
-		r.gameInfo.needStandUpReason = StandUpGameForce
-		if r.gameInfo.status == ActionDefNone {
-			c.standUp(seat, r, StandUpGameForce)
-			return
+	rm := make(map[string]bool)
+	for _, d := range id {
+		rm[d] = true
+	}
+	for seat, r := range c.players {
+		if _, ok := rm[r.id]; ok {
+			r.gameInfo.needStandUpReason = StandUpGameForce
+			if r.gameInfo.status == ActionDefNone {
+				c.standUp(seat, r, StandUpGameForce)
+				return
+			}
 		}
 	}
 }
