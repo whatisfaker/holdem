@@ -75,7 +75,7 @@ type Holdem struct {
 	log                     *zap.Logger                         //日志
 	autoStart               bool                                //是否自动开始
 	minPlayers              int8                                //最小自动开始玩家
-	nextGame                func(*Holdem) bool                  //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
+	nextGame                func(*HoldemState) bool             //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
 	insurance               bool                                //是否有保险
 	insuranceOdds           map[int]float64                     //保险赔率
 	insuranceWaitTimeout    time.Duration                       //保险等待时间
@@ -91,12 +91,12 @@ func NewHoldem(
 	sc int8, //座位数
 	sb uint, //小盲
 	waitBetTimeout time.Duration, //等待下注超时时间
-	nextGame func(*Holdem) bool, //是否继续下一手判断/等待时间
+	nextGame func(*HoldemState) bool, //是否继续下一手判断/等待时间
 	log *zap.Logger, //日志
 	ops ...HoldemOption,
 ) *Holdem {
 	if nextGame == nil {
-		nextGame = func(*Holdem) bool {
+		nextGame = func(*HoldemState) bool {
 			return true
 		}
 	}
@@ -227,9 +227,10 @@ func (c *Holdem) seated(i int8, r *Agent) {
 			rr.recv.RoomerSeated(i, r.ID(), r.gameInfo.te)
 		}
 	}
+	info := c.information()
 	c.seatLock.Unlock()
 	if c.status() == GameStatusNotStart && c.autoStart && c.playerCount >= c.minPlayers {
-		if ok := c.nextGame(c); ok {
+		if ok := c.nextGame(info); ok {
 			c.Start()
 		}
 	}
@@ -1145,9 +1146,10 @@ func (c *Holdem) gameLoop() {
 				c.standUp(i, r, r.gameInfo.needStandUpReason)
 			}
 		}
+		info := c.information()
 		c.seatLock.Unlock()
 		c.log.Debug("hand end")
-		next := c.nextGame(c)
+		next := c.nextGame(info)
 		if next {
 			//清理座位用户
 			c.log.Debug("hand end")
