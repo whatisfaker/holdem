@@ -20,6 +20,11 @@ const (
 	ErrCodeGameOver
 )
 
+type errorWithCode struct {
+	code int
+	err  error
+}
+
 var (
 	errLessChip              = errors.New("chip is less than 0")
 	errNotInBetTime          = errors.New("it is not in bet time")

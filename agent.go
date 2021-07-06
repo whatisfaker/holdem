@@ -20,6 +20,7 @@ type ShowUser struct {
 
 type Agent struct {
 	id                string
+	auto              bool
 	log               *zap.Logger
 	recv              Reciever
 	h                 *Holdem
@@ -43,9 +44,19 @@ func NewAgent(recv Reciever, id string, log *zap.Logger) *Agent {
 	return agent
 }
 
+func NewAutoAgent(id string, log *zap.Logger) *Agent {
+	return &Agent{
+		id:   id,
+		auto: true,
+		recv: &nopReciever{},
+		log:  log,
+	}
+}
+
 func (c *Agent) replace(rs *Agent) {
+	//托管状态覆盖
+	c.auto = rs.auto
 	c.recv = rs.recv
-	//c.recv = rs.recv
 }
 
 type Bet struct {
@@ -76,6 +87,14 @@ type InsuranceResult struct {
 
 func (c *Agent) ID() string {
 	return c.id
+}
+
+func (c *Agent) EnableAuto() {
+	c.auto = true
+}
+
+func (c *Agent) DisableAuto() {
+	c.auto = false
 }
 
 func (c *Agent) ErrorOccur(a int, e error) {
@@ -310,6 +329,9 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 		c.log.Debug("wait buy insurance", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()), zap.Int("outslen", outsLen))
 		c.recv.PlayerCanBuyInsurance(c.gameInfo.seatNumber, outsLen, odds, outs, round)
 	})
+	if c.auto {
+		return nil, nil
+	}
 	//循环如果投注错误,还可以让客户重新投注直到超时
 	for {
 		select {
@@ -334,6 +356,10 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 				Outs:       outsLen,
 			}, is
 		case <-timer.C:
+			c.gameInfo.autoTimes++
+			if c.gameInfo.autoTimes >= 4 {
+				c.auto = true
+			}
 			return nil, nil
 		}
 	}
@@ -380,7 +406,7 @@ type BetGroup struct {
 // 	return pots
 // }
 
-func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Duration) (rbet *Bet) {
+func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Duration) (rbet *Bet) {
 	c.enableBet(true)
 	c.betCh = make(chan *Bet, 1)
 	timer := time.NewTimer(timeout)
@@ -390,6 +416,20 @@ func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Dura
 		timer.Stop()
 		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Uint("amount", rbet.Num), zap.Bool("auto", rbet.Auto), zap.String("round", round.String()))
 	}()
+	//托管直接操作
+	if c.auto {
+		c.gameInfo.status = ActionDefCheck
+		rbet = &Bet{
+			Action: ActionDefCheck,
+			Auto:   true,
+		}
+		//无法check就fold
+		if valid, _ := c.isValidBet(rbet, curBet, minRaise, round); !valid {
+			rbet.Action = ActionDefFold
+			c.gameInfo.status = ActionDefFold
+		}
+		return
+	}
 	//循环如果投注错误,还可以让客户重新投注直到超时
 	for {
 		select {
@@ -397,7 +437,7 @@ func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Dura
 			if !ok {
 				return nil
 			}
-			if c.isValidBet(bet, curBet, minBet, round) {
+			if valid, err2 := c.isValidBet(bet, curBet, minRaise, round); valid {
 				c.gameInfo.status = bet.Action
 				c.gameInfo.handBet += bet.Num
 				c.gameInfo.roundBet += bet.Num
@@ -405,6 +445,9 @@ func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Dura
 				c.enableBet(false)
 				rbet = bet
 				return
+			} else {
+				c.log.Error("invalid bet num", zap.String("action", bet.Action.String()), zap.Uint("num", bet.Num), zap.Uint("maxbet", curBet), zap.Uint("mybeted", c.gameInfo.roundBet), zap.Uint("min_raise", minRaise), zap.Uint("mychip", c.gameInfo.chip))
+				c.ErrorOccur(err2.code, err2.err)
 			}
 		case <-timer.C:
 			//超时尝试check
@@ -414,9 +457,13 @@ func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Dura
 				Auto:   true,
 			}
 			//无法check就fold
-			if !c.isValidBet(rbet, curBet, minBet, round) {
+			if valid, _ := c.isValidBet(rbet, curBet, minRaise, round); !valid {
 				rbet.Action = ActionDefFold
 				c.gameInfo.status = ActionDefFold
+			}
+			c.gameInfo.autoTimes++
+			if c.gameInfo.autoTimes >= 4 {
+				c.auto = true
 			}
 			return
 		}
@@ -424,7 +471,7 @@ func (c *Agent) waitBet(curBet uint, minBet uint, round Round, timeout time.Dura
 }
 
 //isValidBet 判断是否是有效的投注
-func (c *Agent) isValidBet(bet *Bet, maxRoundBet uint, minRaise uint, round Round) bool {
+func (c *Agent) isValidBet(bet *Bet, maxRoundBet uint, minRaise uint, round Round) (bool, *errorWithCode) {
 	//第一个人/或者前面没有人下注
 	actions := make(map[ActionDef]uint)
 	if maxRoundBet == 0 {
@@ -456,16 +503,18 @@ func (c *Agent) isValidBet(bet *Bet, maxRoundBet uint, minRaise uint, round Roun
 	}
 	amount, ok := actions[bet.Action]
 	if !ok {
-		c.log.Error("invalid bet action", zap.String("action", bet.Action.String()), zap.Uint("num", bet.Num), zap.Uint("maxbet", maxRoundBet), zap.Uint("mybeted", c.gameInfo.roundBet), zap.Uint("min_raise", minRaise), zap.Uint("mychip", c.gameInfo.chip))
-		c.ErrorOccur(ErrCodeInvalidBetAction, errInvalidBetAction)
-		return false
+		return false, &errorWithCode{
+			code: ErrCodeInvalidBetAction,
+			err:  errInvalidBetAction,
+		}
 	}
 	if (bet.Action == ActionDefRaise && bet.Num < amount) ||
 		(bet.Action == ActionDefBet && bet.Num < amount) ||
 		(bet.Action != ActionDefRaise && bet.Action != ActionDefBet && bet.Num != amount) {
-		c.log.Error("invalid bet num", zap.String("action", bet.Action.String()), zap.Uint("num", bet.Num), zap.Uint("maxbet", maxRoundBet), zap.Uint("mybeted", c.gameInfo.roundBet), zap.Uint("min_raise", minRaise), zap.Uint("mychip", c.gameInfo.chip))
-		c.ErrorOccur(ErrCodeInvalidBetNum, errInvalidBetNum)
-		return false
+		return false, &errorWithCode{
+			code: ErrCodeInvalidBetNum,
+			err:  errInvalidBetNum,
+		}
 	}
-	return true
+	return true, nil
 }

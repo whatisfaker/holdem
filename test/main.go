@@ -20,7 +20,11 @@ func main() {
 		// //}
 		j := i
 		a := example.NewRobot(j, l)
-		s.Connect(a)
+		if i < 2 {
+			s.Connect(a)
+		} else {
+			s.Connect2(a)
+		}
 		time.AfterFunc(2*time.Second, a.Start)
 	}
 	for {

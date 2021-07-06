@@ -68,6 +68,14 @@ func (c *Server) IsComplete() bool {
 	return c.complete
 }
 
+func (c *Server) Connect2(r *Robot) {
+	l := c.log.With(zap.String("te", "agent"))
+	agent := holdem.NewAutoAgent(r.ID, l)
+	agent.Join(c.h)
+	agent.BringIn(10000)
+	agent.Seated()
+}
+
 func (c *Server) Connect(r *Robot) {
 	l := c.log.With(zap.String("te", "agent"))
 	recv := &rec{

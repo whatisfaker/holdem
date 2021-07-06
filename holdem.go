@@ -46,45 +46,36 @@ type HoldemState struct {
 }
 
 type Holdem struct {
-	poker                   *Poker                              //扑克
-	handNum                 uint                                //手数
-	seatCount               int8                                //座位数量
-	playerCount             int8                                //座位上用户数量
-	players                 map[int8]*Agent                     //座位上用户字典
-	playingPlayerCount      int8                                //当前游戏玩家数量（座位上游戏的）
-	roomers                 map[string]*Agent                   //参与游戏的玩家（包括旁观）
-	buttonSeat              int8                                //庄家座位号
-	sbSeat                  int8                                //小盲座位号
-	bbSeat                  int8                                //大盲座位号
-	isPayToPlay             bool                                //是否需要补盲
-	payToPlayMap            map[int8]PlayType                   //补牌的规则
-	button                  *Agent                              //庄家玩家
-	waitBetTimeout          time.Duration                       //等待下注的超时时间
-	seatLock                sync.Mutex                          //玩家锁
-	gameStartedLock         int32                               //是否开始原子锁
-	gameStatusCh            chan int8                           //开始通道
-	handStartInfo           *StartNewHandInfo                   //当前一手开局信息
-	sb                      uint                                //小盲
-	nextSb                  int                                 //即将修改的小盲
-	ante                    uint                                //前注
-	nextAnte                int                                 //即将修改的前注
-	pot                     uint                                //彩池
-	roundBet                uint                                //当前轮下注额
-	minRaise                uint                                //最小加注量
-	publicCards             []*Card                             //公共牌
-	log                     *zap.Logger                         //日志
-	autoStart               bool                                //是否自动开始
-	minPlayers              int8                                //最小自动开始玩家
-	nextGame                func(*HoldemState) bool             //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
-	insurance               bool                                //是否有保险
-	insuranceOdds           map[int]float64                     //保险赔率
-	insuranceWaitTimeout    time.Duration                       //保险等待时间
-	insuranceResult         map[int8]map[Round]*InsuranceResult //保险结果
-	insuranceUsers          []*Agent                            //参与保险的玩家
-	delayStandUpTimeout     time.Duration                       //延迟站起来时间(等待买筹码)
-	waitForNotEnoughPlayers time.Duration                       //人数不够继续等待时间
-	meta                    map[string]interface{}              //额外数据
-	recorder                Recorder                            //记录器
+	poker              *Poker                              //扑克
+	handNum            uint                                //手数
+	seatCount          int8                                //座位数量
+	playerCount        int8                                //座位上用户数量
+	players            map[int8]*Agent                     //座位上用户字典
+	playingPlayerCount int8                                //当前游戏玩家数量（座位上游戏的）
+	roomers            map[string]*Agent                   //参与游戏的玩家（包括旁观）
+	buttonSeat         int8                                //庄家座位号
+	sbSeat             int8                                //小盲座位号
+	bbSeat             int8                                //大盲座位号
+	payToPlayMap       map[int8]PlayType                   //补牌的规则
+	button             *Agent                              //庄家玩家
+	waitBetTimeout     time.Duration                       //等待下注的超时时间
+	seatLock           sync.Mutex                          //玩家锁
+	gameStartedLock    int32                               //是否开始原子锁
+	gameStatusCh       chan int8                           //开始通道
+	handStartInfo      *StartNewHandInfo                   //当前一手开局信息
+	sb                 uint                                //小盲
+	nextSb             int                                 //即将修改的小盲
+	ante               uint                                //前注
+	nextAnte           int                                 //即将修改的前注
+	pot                uint                                //彩池
+	roundBet           uint                                //当前轮下注额
+	minRaise           uint                                //最小加注量
+	publicCards        []*Card                             //公共牌
+	log                *zap.Logger                         //日志
+	nextGame           func(*HoldemState) bool             //是否继续下一轮的回调函数和等待下一手时间(当前手数) - 内部可以用各种条件来判断是否继续
+	insuranceResult    map[int8]map[Round]*InsuranceResult //保险结果
+	insuranceUsers     []*Agent                            //参与保险的玩家
+	options            *extOptions                         //额外配置
 }
 
 func NewHoldem(
@@ -124,29 +115,20 @@ func NewHoldem(
 		}
 	}
 	h := &Holdem{
-		poker:                   NewPoker(),
-		players:                 make(map[int8]*Agent),
-		roomers:                 make(map[string]*Agent),
-		publicCards:             make([]*Card, 0, 5),
-		waitBetTimeout:          waitBetTimeout,
-		seatCount:               sc,
-		autoStart:               exts.autoStart,
-		minPlayers:              exts.minPlayers,
-		sb:                      sb,
-		nextSb:                  -1,
-		ante:                    exts.ante,
-		nextAnte:                -1,
-		log:                     log,
-		insurance:               exts.insuranceOpen,
-		insuranceOdds:           exts.insuranceOdds,
-		insuranceWaitTimeout:    exts.insuranceWaitTimeout,
-		nextGame:                nextGame,
-		isPayToPlay:             exts.isPayToPlay,
-		payToPlayMap:            payMap,
-		recorder:                exts.recorder,
-		delayStandUpTimeout:     exts.delayStandUpTimeout,
-		waitForNotEnoughPlayers: exts.waitForNotEnoughPlayers,
-		meta:                    exts.medadata,
+		poker:          NewPoker(),
+		players:        make(map[int8]*Agent),
+		roomers:        make(map[string]*Agent),
+		publicCards:    make([]*Card, 0, 5),
+		waitBetTimeout: waitBetTimeout,
+		seatCount:      sc,
+		sb:             sb,
+		nextSb:         -1,
+		ante:           exts.ante,
+		nextAnte:       -1,
+		log:            log,
+		nextGame:       nextGame,
+		payToPlayMap:   payMap,
+		options:        exts,
 	}
 	go h.gameLoop()
 	return h
@@ -229,7 +211,7 @@ func (c *Holdem) seated(i int8, r *Agent) {
 	}
 	info := c.information()
 	c.seatLock.Unlock()
-	if c.status() == GameStatusNotStart && c.autoStart && c.playerCount >= c.minPlayers {
+	if c.status() == GameStatusNotStart && c.options.autoStart && c.playerCount >= c.options.minPlayers {
 		if ok := c.nextGame(info); ok {
 			c.Start()
 		}
@@ -308,7 +290,7 @@ func (c *Holdem) base() *HoldemBase {
 		ButtonSeat: c.buttonSeat,
 		GameStatus: c.status(),
 		HandNum:    c.handNum,
-		Metadata:   c.meta,
+		Metadata:   c.options.medadata,
 	}
 }
 
@@ -361,7 +343,7 @@ func (c *Holdem) buttonPosition() bool {
 	var playerCount int8
 	for i = 0; i < c.seatCount; i++ {
 		seat := ((i + buIdx - 1) % c.seatCount) + 1
-		if c.isPayToPlay {
+		if c.options.isPayToPlay {
 			payMap[seat] = PlayTypeNeedPayToPlay
 		} else {
 			payMap[seat] = PlayTypeNormal
@@ -374,7 +356,7 @@ func (c *Holdem) buttonPosition() bool {
 			}
 			playerCount++
 			//不需要补盲(也不再禁止位置)
-			if !c.isPayToPlay && p.gameInfo.te != PlayTypeDisable {
+			if !c.options.isPayToPlay && p.gameInfo.te != PlayTypeDisable {
 				p.gameInfo.te = PlayTypeNormal
 			}
 			if p.gameInfo.te == PlayTypeNormal || p.gameInfo.te == PlayTypeAgreePayToPlay {
@@ -454,6 +436,11 @@ func (c *Holdem) buttonPosition() bool {
 	for {
 		if !u.fake {
 			u.gameInfo.handNum++
+			if !u.auto {
+				u.gameInfo.autoHandNum = 0
+			} else {
+				u.gameInfo.autoHandNum++
+			}
 		}
 		u = u.nextAgent
 		if u == c.button {
@@ -461,7 +448,7 @@ func (c *Holdem) buttonPosition() bool {
 		}
 	}
 	c.handNum++
-	c.recorder.HandBegin(c.information())
+	c.options.recorder.HandBegin(c.information())
 	c.log.Debug("button position end(true)", zap.Int8("buseat", c.buttonSeat), zap.String("buuser", c.button.ID()), zap.Int8("players", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 	return true
 }
@@ -481,7 +468,7 @@ func (c *Holdem) doAnte() {
 			c.pot += c.ante
 			u.gameInfo.chip -= c.ante
 			u.gameInfo.status = ActionDefAnte
-			c.recorder.Ante(c.base(), u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, c.ante)
+			c.options.recorder.Ante(c.base(), u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, c.ante)
 			c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.ante))
 			u = u.nextAgent
 			if u == c.button {
@@ -491,7 +478,7 @@ func (c *Holdem) doAnte() {
 		}
 		c.handStartInfo.AnteAllIns = append(c.handStartInfo.AnteAllIns, u.gameInfo.seatNumber)
 		c.pot += u.gameInfo.chip
-		c.recorder.Ante(c.base(), u.gameInfo.seatNumber, u.ID(), 0, u.gameInfo.chip)
+		c.options.recorder.Ante(c.base(), u.gameInfo.seatNumber, u.ID(), 0, u.gameInfo.chip)
 		u.gameInfo.chip = 0
 		u.gameInfo.status = ActionDefAllIn
 		c.log.Debug("ante", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.chip))
@@ -523,7 +510,7 @@ func (c *Holdem) smallBlind() {
 			Action: ActionDefSB,
 			Num:    c.sb,
 		}
-		c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefSB, c.sb)
+		c.options.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefSB, c.sb)
 		c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb))
 		return
 	}
@@ -537,7 +524,7 @@ func (c *Holdem) smallBlind() {
 		Action: ActionDefAllIn,
 		Num:    u.gameInfo.roundBet,
 	}
-	c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
+	c.options.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
 	c.log.Debug("small blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.roundBet))
 }
 
@@ -558,7 +545,7 @@ func (c *Holdem) bigBlind() {
 			Action: ActionDefBB,
 			Num:    c.sb * 2,
 		}
-		c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefBB, 2*c.sb)
+		c.options.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefBB, 2*c.sb)
 		c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb*2))
 		return
 	}
@@ -572,7 +559,7 @@ func (c *Holdem) bigBlind() {
 		Action: ActionDefAllIn,
 		Num:    u.gameInfo.roundBet,
 	}
-	c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
+	c.options.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefAllIn, u.gameInfo.roundBet)
 	c.log.Debug("big blind", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", u.gameInfo.roundBet))
 }
 
@@ -588,7 +575,7 @@ func (c *Holdem) payToPlay() {
 			u.gameInfo.te = PlayTypeNormal
 			c.handStartInfo.PayToPlay = append(c.handStartInfo.PayToPlay, u.gameInfo.seatNumber)
 			//补盲
-			c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefBB, 2*c.sb)
+			c.options.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, ActionDefBB, 2*c.sb)
 			c.log.Debug("pay to play", zap.Int8("seat", u.gameInfo.seatNumber), zap.Uint("amount", c.sb*2))
 		}
 		u = u.nextAgent
@@ -644,7 +631,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 			c.log.Error("incorrect action", zap.String("action", bet.Action.String()))
 			panic("incorrect action")
 		}
-		c.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, bet.Action, bet.Num)
+		c.options.recorder.Action(c.base(), RoundPreFlop, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, bet.Action, bet.Num)
 		roundComplete, unfoldUsers, showcard = c.checkRoundComplete()
 		var next *Agent
 		var op *Operator
@@ -744,7 +731,7 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 			c.log.Error("incorrect action", zap.Int8("action", int8(bet.Action)))
 			panic("incorrect action")
 		}
-		c.recorder.Action(c.base(), round, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, bet.Action, bet.Num)
+		c.options.recorder.Action(c.base(), round, u.gameInfo.seatNumber, u.ID(), u.gameInfo.chip, bet.Action, bet.Num)
 		roundComplete, unfoldUsers, showcard = c.checkRoundComplete()
 		var next *Agent
 		var op *Operator
@@ -954,7 +941,7 @@ func (c *Holdem) complexWin(users []*Agent) {
 	for _, r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
-	c.recorder.HandEnd(c.information(), ret)
+	c.options.recorder.HandEnd(c.information(), ret)
 	c.seatLock.Unlock()
 	c.log.Debug("cwin", zap.Any("result", ret))
 }
@@ -988,7 +975,7 @@ func (c *Holdem) simpleWin(agent *Agent) {
 	for _, r := range c.roomers {
 		r.recv.RoomerGetResult(ret)
 	}
-	c.recorder.HandEnd(c.information(), ret)
+	c.options.recorder.HandEnd(c.information(), ret)
 	c.seatLock.Unlock()
 	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.ID()), zap.Any("result", ret))
 }
@@ -1007,7 +994,7 @@ func (c *Holdem) startHand() {
 	c.smallBlind()
 	c.bigBlind()
 	//补盲
-	if c.isPayToPlay {
+	if c.options.isPayToPlay {
 		c.payToPlay()
 	}
 	//发牌（返回第一个行动的人）
@@ -1032,7 +1019,7 @@ func (c *Holdem) startHand() {
 		}
 	}
 	//已亮牌并且有保险开始保险逻辑
-	if showcard && c.insurance {
+	if showcard && c.options.insuranceOpen {
 		//等待买保险
 		c.insuranceStart(users, RoundFlop)
 	}
@@ -1040,7 +1027,7 @@ func (c *Holdem) startHand() {
 	var cards []*Card
 	cards, firstAg = c.dealPublicCards(1, RoundTurn)
 	//已亮牌并且有保险开始保险计算
-	if showcard && c.insurance {
+	if showcard && c.options.insuranceOpen {
 		//保险计算结果
 		c.insuranceEnd(cards[0], RoundFlop)
 	}
@@ -1055,14 +1042,14 @@ func (c *Holdem) startHand() {
 		}
 	}
 	//已亮牌并且有保险开始保险逻辑
-	if showcard && c.insurance {
+	if showcard && c.options.insuranceOpen {
 		//等待买保险
 		c.insuranceStart(users, RoundTurn)
 	}
 	//洗牌,并发送1张公共牌
 	cards, firstAg = c.dealPublicCards(1, RoundRiver)
 	//已亮牌并且有保险开始保险计算
-	if showcard && c.insurance {
+	if showcard && c.options.insuranceOpen {
 		//保险计算结果
 		c.insuranceEnd(cards[0], RoundTurn)
 	}
@@ -1085,6 +1072,7 @@ func fakeAgent(p *Agent) *Agent {
 	//状态重置
 	p.gameInfo.status = ActionDefNone
 	ret.gameInfo = p.gameInfo
+	ret.auto = p.auto
 	ret.fake = true
 	ret.prevAgent = p.prevAgent
 	ret.nextAgent = p.nextAgent
@@ -1113,12 +1101,12 @@ func (c *Holdem) gameLoop() {
 		return
 	}
 	c.log.Debug("game start")
-	c.recorder.GameStart(c.base())
+	c.options.recorder.GameStart(c.base())
 	for {
 		ok := c.buttonPosition()
 		if !ok {
 			c.log.Debug("players are not enough, wait")
-			time.Sleep(c.waitForNotEnoughPlayers)
+			time.Sleep(c.options.waitForNotEnoughPlayers)
 			continue
 		}
 		if c.nextSb > 0 {
@@ -1136,9 +1124,14 @@ func (c *Holdem) gameLoop() {
 		bt := time.Now()
 		c.seatLock.Lock()
 		for i, r := range c.players {
+			if c.options.autoStandUpMaxHand > 0 && r.auto && r.gameInfo.autoHandNum >= c.options.autoStandUpMaxHand {
+				c.log.Debug("user stand up auto", zap.Int8("seat", i), zap.String("user", r.ID()))
+				c.standUp(i, r, StandUpAutoExceedMaxTimes)
+				continue
+			}
 			if r.gameInfo.chip == 0 && r.gameInfo.needStandUpReason == StandUpNone {
 				waitforbuy = true
-				c.delayStandUp(i, r, c.delayStandUpTimeout, StandUpNoChip)
+				c.delayStandUp(i, r, c.options.delayStandUpTimeout, StandUpNoChip)
 				continue
 			}
 			if r.gameInfo.needStandUpReason != StandUpNone {
@@ -1154,7 +1147,7 @@ func (c *Holdem) gameLoop() {
 			//清理座位用户
 			c.log.Debug("hand end")
 			if waitforbuy {
-				wait := time.Since(bt) - c.delayStandUpTimeout - 500*time.Millisecond
+				wait := time.Since(bt) - c.options.delayStandUpTimeout - 500*time.Millisecond
 				if wait > 0 {
 					time.Sleep(wait)
 				}
@@ -1175,7 +1168,7 @@ func (c *Holdem) gameLoop() {
 			c.standUp(i, r, StandUpGameEnd)
 		}
 		c.seatLock.Unlock()
-		c.recorder.GameEnd(c.base())
+		c.options.recorder.GameEnd(c.base())
 		c.log.Debug("game end")
 		return
 	}

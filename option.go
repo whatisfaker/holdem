@@ -5,6 +5,7 @@ import (
 )
 
 type extOptions struct {
+	autoStandUpMaxHand      uint
 	insuranceOpen           bool
 	insuranceOdds           map[int]float64
 	insuranceWaitTimeout    time.Duration
@@ -40,6 +41,13 @@ func OptionInsurance(insuranceOdds map[int]float64, insuranceWaitTimeout time.Du
 	return newFuncOption(func(o *extOptions) {
 		o.insuranceOdds = insuranceOdds
 		o.insuranceWaitTimeout = insuranceWaitTimeout
+	})
+}
+
+//OptionAutoStandUp 是否托管状态打完站起
+func OptionAutoStandUp(num uint) HoldemOption {
+	return newFuncOption(func(o *extOptions) {
+		o.autoStandUpMaxHand = num
 	})
 }
 

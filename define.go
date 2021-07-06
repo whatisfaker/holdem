@@ -25,6 +25,7 @@ const (
 	StandUpGameEnd
 	StandUpGameForce
 	StandUpGameExchange
+	StandUpAutoExceedMaxTimes
 )
 
 func (c Round) String() string {

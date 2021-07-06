@@ -45,7 +45,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 			}
 		}
 		//没有赔率，无法购买
-		odds, ok := c.insuranceOdds[o.Len]
+		odds, ok := c.options.insuranceOdds[o.Len]
 		if !ok {
 			u.recv.PlayerCanNotBuyInsurance(u.gameInfo.seatNumber, o.Len, round)
 			continue
@@ -72,7 +72,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 			}
 		}
 		grp.Go(func() error {
-			r, buy := u.waitBuyInsurance(o.Len, odds, userOuts, round, c.insuranceWaitTimeout)
+			r, buy := u.waitBuyInsurance(o.Len, odds, userOuts, round, c.options.insuranceWaitTimeout)
 			if r != nil {
 				ch <- r
 			}
@@ -110,10 +110,10 @@ func (c *Holdem) insuranceEnd(card *Card, round Round) {
 		ins, ok := u.gameInfo.insurance[card.Value()]
 		if ok {
 			outsLen := c.insuranceResult[u.gameInfo.seatNumber][round].Outs
-			c.insuranceResult[u.gameInfo.seatNumber][round].Earn = float64(ins.Num) * c.insuranceOdds[outsLen]
-			c.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.ID(), cost, c.insuranceResult[u.gameInfo.seatNumber][round].Earn)
+			c.insuranceResult[u.gameInfo.seatNumber][round].Earn = float64(ins.Num) * c.options.insuranceOdds[outsLen]
+			c.options.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.ID(), cost, c.insuranceResult[u.gameInfo.seatNumber][round].Earn)
 		} else {
-			c.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.ID(), cost, 0)
+			c.options.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.ID(), cost, 0)
 		}
 	}
 }
