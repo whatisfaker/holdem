@@ -44,15 +44,6 @@ func NewAgent(recv Reciever, id string, log *zap.Logger) *Agent {
 	return agent
 }
 
-func NewAutoAgent(id string, log *zap.Logger) *Agent {
-	return &Agent{
-		id:   id,
-		auto: true,
-		recv: &nopReciever{},
-		log:  log,
-	}
-}
-
 func (c *Agent) replace(rs *Agent) {
 	//托管状态覆盖
 	c.auto = rs.auto
