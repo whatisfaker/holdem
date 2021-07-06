@@ -23,10 +23,10 @@ func (c *Holdem) Cancel() {
 }
 
 //State 状态
-func (c *Holdem) State() *HoldemState {
+func (c *Holdem) State(rs ...*Agent) *HoldemState {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
-	return c.information()
+	return c.information(rs...)
 }
 
 //ChangeBetConfig 修改下注配置（小盲/前注)

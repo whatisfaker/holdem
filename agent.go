@@ -19,7 +19,7 @@ type ShowUser struct {
 }
 
 type Agent struct {
-	//	invalid           bool
+	id                string
 	log               *zap.Logger
 	recv              Reciever
 	h                 *Holdem
@@ -34,8 +34,9 @@ type Agent struct {
 	fake              bool
 }
 
-func NewAgent(recv Reciever, log *zap.Logger) *Agent {
+func NewAgent(recv Reciever, id string, log *zap.Logger) *Agent {
 	agent := &Agent{
+		id:   id,
 		recv: recv,
 		log:  log,
 	}
@@ -73,23 +74,23 @@ type InsuranceResult struct {
 	Round Round
 }
 
+func (c *Agent) ID() string {
+	return c.id
+}
+
 func (c *Agent) ErrorOccur(a int, e error) {
-	c.log.Error("error", zap.Error(e), zap.String("id", c.recv.ID()))
+	c.log.Error("error", zap.Error(e), zap.String("id", c.id))
 	c.recv.ErrorOccur(a, e)
 }
 
-// func (c *Agent) String() string {
-// 	return fmt.Sprintf("chip:%d, roundBet:%d, handBet:%d", c.gameInfo.chip, c.gameInfo.roundBet, c.gameInfo.roundBet)
-// }
-
 //ShowUser 展示用户信息
-func (c *Agent) displayUser() *ShowUser {
+func (c *Agent) displayUser(showCards bool) *ShowUser {
 	if c.gameInfo == nil {
 		return nil
 	}
 	if c.showUser == nil {
 		c.showUser = &ShowUser{
-			ID: c.recv.ID(),
+			ID: c.id,
 		}
 	}
 	if c.gameInfo == nil {
@@ -101,6 +102,9 @@ func (c *Agent) displayUser() *ShowUser {
 	c.showUser.HandNum = c.gameInfo.handNum
 	c.showUser.Status = c.gameInfo.status
 	c.showUser.Te = c.gameInfo.te
+	if showCards {
+		c.showUser.Cards = c.gameInfo.cards
+	}
 	return c.showUser
 }
 
@@ -115,21 +119,21 @@ func (c *Agent) Join(holdem *Holdem) {
 }
 
 //Info 获取信息
-func (c *Agent) Info() {
-	if c.h == nil {
-		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
-		return
-	}
-	s := c.h.State()
-	for k := range s.Seated {
-		p := s.Seated[k]
-		if p.ID == c.recv.ID() {
-			p.Cards = c.gameInfo.cards
-		}
-		s.Seated[k] = p
-	}
-	c.recv.RoomerGameInformation(s)
-}
+// func (c *Agent) Info() {
+// 	if c.h == nil {
+// 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
+// 		return
+// 	}
+// 	s := c.h.State()
+// 	for k := range s.Seated {
+// 		p := s.Seated[k]
+// 		if p.ID == c.id {
+// 			p.Cards = c.gameInfo.cards
+// 		}
+// 		s.Seated[k] = p
+// 	}
+// 	c.recv.RoomerGameInformation(c, s)
+// }
 
 //Leave 离开
 func (c *Agent) Leave(holdem *Holdem) {
@@ -171,7 +175,7 @@ func (c *Agent) BringIn(chip uint) {
 			bringIn: chip,
 		}
 	}
-	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.recv.ID()), zap.Uint("bringin", chip))
+	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.id), zap.Uint("bringin", chip))
 	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, chip)
 }
 

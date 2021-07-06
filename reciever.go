@@ -3,8 +3,6 @@ package holdem
 import "time"
 
 type Reciever interface {
-	//ID 用户识别
-	ID() string
 	//ErrorOccur 接收错误
 	ErrorOccur(int, error)
 	//RoomerGameInformation 游戏信息

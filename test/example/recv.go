@@ -277,10 +277,6 @@ func (c *rec) PlayerStandUp(seat int8, reason int8) {
 	}
 }
 
-func (c *rec) ID() string {
-	return c.id
-}
-
 // type player struct {
 // 	id     string
 // 	name   string

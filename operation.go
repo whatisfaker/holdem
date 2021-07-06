@@ -24,7 +24,7 @@ func newOperator(r *Agent, bet uint, minRaise uint) *Operator {
 		return nil
 	}
 	return &Operator{
-		ID:              r.recv.ID(),
+		ID:              r.ID(),
 		SeatNumber:      r.gameInfo.seatNumber,
 		Chip:            r.gameInfo.chip,
 		BringIn:         r.gameInfo.bringIn,

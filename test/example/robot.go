@@ -14,7 +14,7 @@ type RA int8
 
 const (
 	RAJoin RA = iota + 1
-	RAInfo
+	//RAInfo
 	RABringIn
 	RASeat
 	RABet
@@ -146,11 +146,11 @@ func (c *Robot) read() {
 			}
 			//站起来了
 			c.log.Debug("SAStandUp", zap.Int8("seat", in.Seat))
-			time.AfterFunc(time.Second, func() {
-				c.outCh <- &RobotAction{
-					Action: RAInfo,
-				}
-			})
+			// time.AfterFunc(time.Second, func() {
+			// 	c.outCh <- &RobotAction{
+			// 		Action: RAInfo,
+			// 	}
+			// })
 		case SAReadyStandUp:
 			//准备站起
 			c.log.Debug("SAReadyStandUp", zap.Int8("seat", in.Seat))

@@ -79,7 +79,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 			u.recv.PlayerBuyInsuranceSuccess(u.gameInfo.seatNumber, buy)
 			c.seatLock.Lock()
 			for uid, rr := range c.roomers {
-				if uid != u.recv.ID() {
+				if uid != u.ID() {
 					rr.recv.RoomerGetBuyInsurance(u.gameInfo.seatNumber, buy, round)
 				}
 			}
@@ -111,9 +111,9 @@ func (c *Holdem) insuranceEnd(card *Card, round Round) {
 		if ok {
 			outsLen := c.insuranceResult[u.gameInfo.seatNumber][round].Outs
 			c.insuranceResult[u.gameInfo.seatNumber][round].Earn = float64(ins.Num) * c.insuranceOdds[outsLen]
-			c.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.recv.ID(), cost, c.insuranceResult[u.gameInfo.seatNumber][round].Earn)
+			c.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.ID(), cost, c.insuranceResult[u.gameInfo.seatNumber][round].Earn)
 		} else {
-			c.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.recv.ID(), cost, 0)
+			c.recorder.InsureResult(c.base(), round, u.gameInfo.seatNumber, u.ID(), cost, 0)
 		}
 	}
 }

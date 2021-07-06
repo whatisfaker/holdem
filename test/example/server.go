@@ -74,7 +74,7 @@ func (c *Server) Connect(r *Robot) {
 		id:  r.ID,
 		log: l,
 	}
-	agent := holdem.NewAgent(recv, l)
+	agent := holdem.NewAgent(recv, r.ID, l)
 	a := &agentWrapper{
 		r:     r,
 		agent: agent,
@@ -93,8 +93,8 @@ func (c *agentWrapper) read() {
 		case RASeat:
 			//c.agent.Seated(int8(o.Num))
 			c.agent.Seated()
-		case RAInfo:
-			c.agent.Info()
+		// case RAInfo:
+		// 	c.agent.Info()
 		case RABet:
 			c.agent.Bet(o.Bet)
 		case RAStandUp:
