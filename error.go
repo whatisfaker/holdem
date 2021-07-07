@@ -18,6 +18,7 @@ const (
 	ErrCodeNotStandUp
 	ErrCodeAlreadySeated
 	ErrCodeGameOver
+	ErrCodeExceedTimeOverTimes
 )
 
 type errorWithCode struct {
@@ -41,4 +42,5 @@ var (
 	errNotStandUp            = errors.New("you didnt leave table")
 	errAlreadySeated         = errors.New("you are already seated")
 	errGameOver              = errors.New("game is over")
+	errExceedTimeOverTimes   = errors.New("can not exceed time")
 )

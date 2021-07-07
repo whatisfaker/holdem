@@ -18,6 +18,7 @@ type extOptions struct {
 	minPlayers              int8 //最小游戏人数
 	delayStandUpTimeout     time.Duration
 	waitForNotEnoughPlayers time.Duration //人数不够等待时间
+	delayLimitTimes         uint          //延迟操作次数上线
 }
 
 type HoldemOption interface {

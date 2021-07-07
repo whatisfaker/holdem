@@ -39,6 +39,7 @@ type gameInfo struct {
 	insurance         map[int8]*BuyInsurance //CardValue: buy
 	autoHandNum       uint
 	autoTimes         uint
+	exceedTimes       uint
 }
 
 func (c *gameInfo) calcHandValue(pc []*Card) {

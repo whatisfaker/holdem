@@ -87,3 +87,24 @@ func (c *Holdem) ForcePlayerStandUp(count uint8) {
 		}
 	}
 }
+
+//BroadcastMessage 广播消息通知
+func (c *Holdem) BroadcastMessage(code int, v interface{}, r ...*Agent) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	var uid string
+	var seat int8
+	if len(r) > 0 {
+		uid = r[0].id
+		if r[0].gameInfo != nil && r[0].gameInfo.seatNumber > 0 {
+			seat = r[0].gameInfo.seatNumber
+		}
+	}
+	for _, rr := range c.roomers {
+		if seat > 0 {
+			rr.recv.RoomerMessage(c.id, code, v, uid, seat)
+		} else {
+			rr.recv.RoomerMessage(c.id, code, v, uid)
+		}
+	}
+}

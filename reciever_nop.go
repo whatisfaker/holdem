@@ -92,3 +92,23 @@ func (c *NopReciever) PlayerStandUp(hid string, seat int8, userID string, reason
 
 //PlayerKeepSeat 玩家占座(座位号)
 func (c *NopReciever) PlayerKeepSeat(hid string, seat int8, userID string, tm time.Duration) {}
+
+//RoomerGameStart 游戏开始
+func (c *NopReciever) RoomerGameStart(hid string) {}
+
+//RoomerGameEnd 游戏结束
+func (c *NopReciever) RoomerGameEnd(hid string) {}
+
+//RoomerPots 当前池
+func (c *NopReciever) RoomerGamePots(hid string, pots []*Pot, round Round) {}
+
+//RoomerExceedTime 延时
+func (c *NopReciever) RoomerExceedTime(hid string, seat int8, uid string, times int8, tm time.Duration) {
+}
+
+//PlayerAutoOp 玩家托管(开启/关闭)
+func (c *NopReciever) RoomerAutoOp(hid string, seat int8, userID string, open bool) {}
+
+//RoomerMessage
+func (c *NopReciever) RoomerMessage(hid string, code int, msg interface{}, uid string, seat ...int8) {
+}

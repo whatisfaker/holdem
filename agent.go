@@ -25,6 +25,7 @@ type Agent struct {
 	recv              Reciever
 	h                 *Holdem
 	gameInfo          *gameInfo
+	addTime           time.Duration
 	betCh             chan *Bet
 	insuranceCh       chan []*BuyInsurance
 	atomBetLock       int32
@@ -80,12 +81,49 @@ func (c *Agent) ID() string {
 	return c.id
 }
 
+func (c *Agent) SendMessageToAll(code int, v interface{}) {
+	if c.h == nil {
+		return
+	}
+	c.h.BroadcastMessage(code, v, c)
+}
+
 func (c *Agent) EnableAuto() {
+	if c.h == nil {
+		return
+	}
+	if c.gameInfo == nil {
+		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
 	c.auto = true
+	c.h.autoOp(c, true)
 }
 
 func (c *Agent) DisableAuto() {
+	if c.h == nil {
+		return
+	}
+	if c.gameInfo == nil {
+		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
 	c.auto = false
+	c.h.autoOp(c, false)
+}
+
+func (c *Agent) AddTime(dur time.Duration) {
+	if c.h == nil {
+		return
+	}
+	if c.gameInfo == nil {
+		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	c.addTime = dur
+	c.gameInfo.exceedTimes++
+	c.h.exceedOpTime(c, dur)
+
 }
 
 func (c *Agent) ErrorOccur(a int, e error) {
@@ -150,17 +188,17 @@ func (c *Agent) Leave(holdem *Holdem) {
 	if c.h == nil {
 		return
 	}
-	if c.gameInfo != nil {
+	if c.gameInfo == nil {
+		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber > 0 {
 		c.ErrorOccur(ErrCodeNotStandUp, errNotStandUp)
 		return
 	}
 	holdem.leave(c)
 	c.h = nil
 }
-
-// func (c *Agent) Invalid(b bool) {
-// 	c.invalid = b
-// }
 
 //BringIn 带入筹码
 func (c *Agent) BringIn(chip uint) {
@@ -307,6 +345,7 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 	c.enableBuyInsurance(true)
 	c.insuranceCh = make(chan []*BuyInsurance, 1)
 	c.gameInfo.insurance = make(map[int8]*BuyInsurance)
+	c.gameInfo.exceedTimes = 0
 	timer := time.NewTimer(timeout)
 	var amount uint
 	defer func() {
@@ -324,11 +363,17 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 		return nil, nil
 	}
 	//循环如果投注错误,还可以让客户重新投注直到超时
+	limit := c.h.options.delayLimitTimes
 	for {
+	L:
 		select {
 		case is, ok := <-c.insuranceCh:
 			if !ok {
 				return nil, nil
+			}
+			if c.auto {
+				c.auto = false
+				c.h.autoOp(c, false)
 			}
 			var cost uint
 			for _, v := range is {
@@ -347,9 +392,18 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 				Outs:       outsLen,
 			}, is
 		case <-timer.C:
+			for ; limit > 0; limit-- {
+				if c.addTime == 0 {
+					break
+				}
+				timer = time.NewTimer(c.addTime)
+				c.addTime = 0
+				break L
+			}
 			c.gameInfo.autoTimes++
 			if c.gameInfo.autoTimes >= 4 {
 				c.auto = true
+				c.h.autoOp(c, true)
 			}
 			return nil, nil
 		}
@@ -400,6 +454,7 @@ type BetGroup struct {
 func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Duration) (rbet *Bet) {
 	c.enableBet(true)
 	c.betCh = make(chan *Bet, 1)
+	c.gameInfo.exceedTimes = 0
 	timer := time.NewTimer(timeout)
 	defer func() {
 		c.enableBet(false)
@@ -422,11 +477,17 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 		return
 	}
 	//循环如果投注错误,还可以让客户重新投注直到超时
+	limit := c.h.options.delayLimitTimes
 	for {
+	L:
 		select {
 		case bet, ok := <-c.betCh:
 			if !ok {
 				return nil
+			}
+			if c.auto {
+				c.auto = false
+				c.h.autoOp(c, false)
 			}
 			if valid, err2 := c.isValidBet(bet, curBet, minRaise, round); valid {
 				c.gameInfo.status = bet.Action
@@ -441,6 +502,14 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 				c.ErrorOccur(err2.code, err2.err)
 			}
 		case <-timer.C:
+			for ; limit > 0; limit-- {
+				if c.addTime == 0 {
+					break
+				}
+				timer = time.NewTimer(c.addTime)
+				c.addTime = 0
+				break L
+			}
 			//超时尝试check
 			c.gameInfo.status = ActionDefCheck
 			rbet = &Bet{
@@ -455,6 +524,7 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 			c.gameInfo.autoTimes++
 			if c.gameInfo.autoTimes >= 4 {
 				c.auto = true
+				c.h.autoOp(c, true)
 			}
 			return
 		}

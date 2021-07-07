@@ -5,8 +5,16 @@ import "time"
 type Reciever interface {
 	//ErrorOccur 接收错误
 	ErrorOccur(string, int, error)
-	//RoomerGameInformation 游戏信息
-	//RoomerGameInformation(*HoldemState)
+	//RoomerMessage
+	RoomerMessage(hid string, code int, msg interface{}, uid string, seat ...int8)
+	//RoomerGameStart 游戏开始
+	RoomerGameStart(hid string)
+	//RoomerGameEnd 游戏结束
+	RoomerGameEnd(hid string)
+	//RoomerPots 当前池
+	RoomerGamePots(hid string, pots []*Pot, round Round)
+	//RoomerExceedTime 延时
+	RoomerExceedTime(hid string, seat int8, uid string, times int8, tm time.Duration)
 	//RoomerJoin 接收有人进入游戏
 	RoomerJoin(hid string, userID string)
 	//RoomerLeave 接收有人离开游戏
@@ -27,6 +35,8 @@ type Reciever interface {
 	RoomerGetShowCards(hid string, cards []*ShowCard)
 	//RoomerGetResult 接收牌局结果
 	RoomerGetResult(hid string, res []*Result)
+	//RoomerAutoOp 玩家托管(开启/关闭)
+	RoomerAutoOp(hid string, seat int8, userID string, open bool)
 	//RoomerKeepSeat 接收有人占座(座位号)
 	RoomerKeepSeat(hid string, seat int8, userID string, tm time.Duration)
 	//PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注),下一个操作者)

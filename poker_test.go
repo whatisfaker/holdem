@@ -441,3 +441,30 @@ func TestGoRoutine(t *testing.T) {
 	c := time.After(10 * time.Second)
 	<-c
 }
+
+func TestChannel(t *testing.T) {
+	th := make(chan bool)
+	defer close(th)
+	timer := time.NewTimer(5 * time.Second)
+	go func() {
+		time.Sleep(11 * time.Second)
+		th <- true
+	}()
+	i := 0
+	for {
+	L:
+		select {
+		case <-th:
+			t.Log("th")
+			return
+		case <-timer.C:
+			i++
+			if i < 2 {
+				timer = time.NewTimer(5 * time.Second)
+				break L
+			}
+			t.Log("time out", i)
+			return
+		}
+	}
+}

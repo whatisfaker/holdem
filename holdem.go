@@ -995,6 +995,38 @@ func (c *Holdem) simpleWin(agent *Agent) {
 	c.log.Debug("swin", zap.Int8("seat", agent.gameInfo.seatNumber), zap.String("user", agent.ID()), zap.Any("result", ret))
 }
 
+//sendPotsInfo 发送主边池信息
+func (c *Holdem) sendPotsInfo(users []*Agent, round Round) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	pots := c.calcPot(users)
+	for _, r := range c.roomers {
+		r.recv.RoomerGamePots(c.id, pots, round)
+	}
+}
+
+//autoOp 托管
+func (c *Holdem) autoOp(r *Agent, open bool) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	for _, r := range c.roomers {
+		r.recv.RoomerAutoOp(c.id, r.gameInfo.seatNumber, r.id, open)
+	}
+}
+
+//
+func (c *Holdem) exceedOpTime(r *Agent, tm time.Duration) {
+	if r.gameInfo.exceedTimes > c.options.delayLimitTimes {
+		r.recv.ErrorOccur(c.id, ErrCodeExceedTimeOverTimes, errExceedTimeOverTimes)
+		return
+	}
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	for _, rr := range c.roomers {
+		rr.recv.RoomerExceedTime(c.id, r.gameInfo.seatNumber, r.id, int8(r.gameInfo.exceedTimes), tm)
+	}
+}
+
 //StartHand 开始新的一手
 func (c *Holdem) startHand() {
 	c.pot = 0
@@ -1021,6 +1053,8 @@ func (c *Holdem) startHand() {
 		c.simpleWin(users[0])
 		return
 	}
+	//广播主边池内容
+	c.sendPotsInfo(users, RoundPreFlop)
 	//洗牌,并发送3张公共牌
 	_, firstAg = c.dealPublicCards(3, RoundFlop)
 	//未亮牌要下注
@@ -1033,6 +1067,8 @@ func (c *Holdem) startHand() {
 			return
 		}
 	}
+	//广播主边池内容
+	c.sendPotsInfo(users, RoundFlop)
 	//已亮牌并且有保险开始保险逻辑
 	if showcard && c.options.insuranceOpen {
 		//等待买保险
@@ -1056,6 +1092,8 @@ func (c *Holdem) startHand() {
 			return
 		}
 	}
+	//广播主边池内容
+	c.sendPotsInfo(users, RoundTurn)
 	//已亮牌并且有保险开始保险逻辑
 	if showcard && c.options.insuranceOpen {
 		//等待买保险
@@ -1078,6 +1116,7 @@ func (c *Holdem) startHand() {
 			return
 		}
 	}
+	c.sendPotsInfo(users, RoundRiver)
 	//比牌计算结果
 	c.complexWin(users)
 }
@@ -1117,6 +1156,11 @@ func (c *Holdem) gameLoop() {
 	}
 	c.log.Debug("game start")
 	c.options.recorder.GameStart(c.base())
+	c.seatLock.Lock()
+	for _, r := range c.roomers {
+		r.recv.RoomerGameStart(c.id)
+	}
+	c.seatLock.Unlock()
 	for {
 		ok := c.buttonPosition()
 		if !ok {
@@ -1184,6 +1228,11 @@ func (c *Holdem) gameLoop() {
 		}
 		c.seatLock.Unlock()
 		c.options.recorder.GameEnd(c.base())
+		c.seatLock.Lock()
+		for _, r := range c.roomers {
+			r.recv.RoomerGameEnd(c.id)
+		}
+		c.seatLock.Unlock()
 		c.log.Debug("game end")
 		return
 	}
