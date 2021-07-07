@@ -10,28 +10,28 @@ type Recorder interface {
 	GameEnd(base *HoldemBase)
 }
 
-type nopRecorder struct {
+type NopRecorder struct {
 }
 
 func newNopRecorder() Recorder {
-	return &nopRecorder{}
+	return &NopRecorder{}
 }
 
-var _ Recorder = (*nopRecorder)(nil)
+var _ Recorder = (*NopRecorder)(nil)
 
-func (c *nopRecorder) GameStart(*HoldemBase) {}
+func (c *NopRecorder) GameStart(*HoldemBase) {}
 
-func (c *nopRecorder) GameEnd(*HoldemBase) {}
+func (c *NopRecorder) GameEnd(*HoldemBase) {}
 
-func (c *nopRecorder) HandBegin(*HoldemState) {}
+func (c *NopRecorder) HandBegin(*HoldemState) {}
 
-func (c *nopRecorder) Ante(meta *HoldemBase, seat int8, id string, chip uint, num uint) {
+func (c *NopRecorder) Ante(meta *HoldemBase, seat int8, id string, chip uint, num uint) {
 }
 
-func (c *nopRecorder) Action(meta *HoldemBase, round Round, seat int8, id string, chip uint, action ActionDef, num uint) {
+func (c *NopRecorder) Action(meta *HoldemBase, round Round, seat int8, id string, chip uint, action ActionDef, num uint) {
 }
 
-func (c *nopRecorder) InsureResult(meta *HoldemBase, round Round, seat int8, id string, bet uint, win float64) {
+func (c *NopRecorder) InsureResult(meta *HoldemBase, round Round, seat int8, id string, bet uint, win float64) {
 }
 
-func (c *nopRecorder) HandEnd(state *HoldemState, r []*Result) {}
+func (c *NopRecorder) HandEnd(state *HoldemState, r []*Result) {}
