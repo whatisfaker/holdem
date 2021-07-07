@@ -102,16 +102,23 @@ func NewHoldem(
 		isPayToPlay:             false,
 		medadata:                make(map[string]interface{}),
 		waitForNotEnoughPlayers: 10 * time.Second,
+		minPlayers:              2,
 	}
 	for _, o := range ops {
 		o.apply(exts)
 	}
+	if exts.minPlayers > sc {
+		exts.minPlayers = sc
+	}
+	if exts.minPlayers < 2 {
+		exts.minPlayers = 2
+	}
 	if exts.autoStart {
-		if exts.minPlayers > sc {
-			exts.minPlayers = sc
+		if exts.autoMinPlayers > sc {
+			exts.autoMinPlayers = sc
 		}
-		if exts.minPlayers < 2 {
-			exts.minPlayers = 2
+		if exts.autoMinPlayers < 2 {
+			exts.autoMinPlayers = 2
 		}
 	}
 	h := &Holdem{
@@ -211,7 +218,7 @@ func (c *Holdem) seated(i int8, r *Agent) {
 	}
 	info := c.information()
 	c.seatLock.Unlock()
-	if c.status() == GameStatusNotStart && c.options.autoStart && c.playerCount >= c.options.minPlayers {
+	if c.status() == GameStatusNotStart && c.options.autoStart && c.playerCount >= c.options.autoMinPlayers {
 		if ok := c.nextGame(info); ok {
 			c.Start()
 		}
@@ -378,12 +385,13 @@ func (c *Holdem) buttonPosition() bool {
 			cur = p
 		}
 	}
-	if playerCount <= 1 {
-		c.log.Debug("button position end(false)", zap.Int8("valid seat count", playerCount), zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
-		return false
-	}
 	newButton.prevAgent = cur
 	cur.nextAgent = newButton
+	//坐着的人比约定人数少 不开始比赛也不轮转
+	if playerCount < c.options.minPlayers {
+		c.log.Debug("button position end(false)", zap.Int8("minplayers", c.options.minPlayers), zap.Int8("valid seat count", playerCount), zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
+		return false
+	}
 	newSBSeat := newButton.nextAgent.gameInfo.seatNumber
 	newBBSeat := newButton.nextAgent.nextAgent.gameInfo.seatNumber
 	//BB位可以脱离补盲状态
@@ -422,8 +430,9 @@ func (c *Holdem) buttonPosition() bool {
 	c.sbSeat = newSBSeat
 	c.bbSeat = newBBSeat
 	c.payToPlayMap = payMap
-	if c.playingPlayerCount <= 1 {
-		c.log.Debug("button position end(false)", zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
+	//所有能玩的人数小于最小人数，不开始，但是轮转
+	if c.playingPlayerCount < c.options.minPlayers {
+		c.log.Debug("button position end(false)", zap.Int8("minplayers", c.options.minPlayers), zap.Int8("seat count", c.playerCount), zap.Int8("pc", c.playingPlayerCount))
 		return false
 	}
 	c.handStartInfo = &StartNewHandInfo{

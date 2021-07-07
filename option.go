@@ -14,6 +14,7 @@ type extOptions struct {
 	ante                    uint
 	medadata                map[string]interface{}
 	autoStart               bool //是否自动开始
+	autoMinPlayers          int8 //最懂最少开始人数
 	minPlayers              int8 //最小游戏人数
 	delayStandUpTimeout     time.Duration
 	waitForNotEnoughPlayers time.Duration //人数不够等待时间
@@ -76,9 +77,15 @@ func OptionAnte(ante uint) HoldemOption {
 	})
 }
 
-func OptionAutoStart(minPlayers int8) HoldemOption {
+func OptionAutoStart(autoMinPlayers int8) HoldemOption {
 	return newFuncOption(func(o *extOptions) {
 		o.autoStart = true
+		o.autoMinPlayers = autoMinPlayers
+	})
+}
+
+func OptionMinPlayers(minPlayers int8) HoldemOption {
+	return newFuncOption(func(o *extOptions) {
 		o.minPlayers = minPlayers
 	})
 }
