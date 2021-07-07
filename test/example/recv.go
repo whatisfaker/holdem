@@ -3,7 +3,6 @@ package example
 import (
 	"encoding/json"
 	"io"
-	"time"
 
 	"github.com/whatisfaker/holdem"
 	"go.uber.org/zap"
@@ -40,6 +39,7 @@ func NewLogger(level string, wr io.Writer) *zap.Logger {
 }
 
 type rec struct {
+	*holdem.NopReciever
 	ch  chan<- *ServerAction
 	id  string
 	log *zap.Logger
@@ -73,15 +73,6 @@ func (c *rec) PlayerJoinSuccess(userinfo string, h *holdem.HoldemState) {
 	}
 }
 
-//RoomerRoomerStandUp
-func (c *rec) RoomerStandUp(seat int8, u string, reason int8) {
-	// c.ch <- &ServerAction{
-	// 	Action: SAStandUp,
-	// 	Seat:   seat,
-	// 	Num:    int(reason),
-	// }
-}
-
 //RoomerGetCard 接收有人收到牌（位置,牌数量)
 func (c *rec) RoomerGetCard(a []int8, num int8, info *holdem.StartNewHandInfo, op *holdem.Operator) {
 	mp := make(map[string]interface{})
@@ -95,13 +86,13 @@ func (c *rec) RoomerGetCard(a []int8, num int8, info *holdem.StartNewHandInfo, o
 }
 
 //RoomerGetPublicCard 接收公共牌
-func (c *rec) RoomerGetPublicCard(cds []*holdem.Card, op *holdem.Operator, isYourTurn bool) {
+func (c *rec) RoomerGetPublicCard(cds []*holdem.Card, op *holdem.Operator) {
 	b, _ := json.Marshal(cds)
 	c.ch <- &ServerAction{
 		Action:  SAGetPCards,
 		Payload: b,
 	}
-	if isYourTurn {
+	if op.ID == c.id {
 		c.ch <- &ServerAction{
 			Action: SACanBet,
 			Seat:   op.SeatNumber,
@@ -126,14 +117,14 @@ func (c *rec) RoomerGetShowCards(cds []*holdem.ShowCard) {
 }
 
 //RoomerGetAction 接收有人动作（位置，动作，金额(如果下注))
-func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, num uint, op *holdem.Operator, isYourTurn bool) {
+func (c *rec) RoomerGetAction(seat int8, id string, action holdem.ActionDef, num uint, op *holdem.Operator) {
 	c.ch <- &ServerAction{
 		Action:  SAAction,
 		Action2: action,
 		Seat:    seat,
 		Num:     num,
 	}
-	if isYourTurn {
+	if op.ID == c.id {
 		c.ch <- &ServerAction{
 			Action: SACanBet,
 			Seat:   op.SeatNumber,
@@ -148,10 +139,6 @@ func (c *rec) RoomerGetAction(button int8, seat int8, action holdem.ActionDef, n
 	}
 }
 
-func (c *rec) RoomerGetBuyInsurance(seat int8, buy []*holdem.BuyInsurance, round holdem.Round) {
-
-}
-
 //RoomerGetResult 接收牌局结果
 func (c *rec) RoomerGetResult(rs []*holdem.Result) {
 	b, _ := json.Marshal(rs)
@@ -162,7 +149,7 @@ func (c *rec) RoomerGetResult(rs []*holdem.Result) {
 }
 
 //PlayerGetCard 玩家获得自己发到的牌
-func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int8, info *holdem.StartNewHandInfo, op *holdem.Operator, isYourTurn bool) {
+func (c *rec) PlayerGetCard(seat int8, id string, cds []*holdem.Card, seats []int8, cnt int8, info *holdem.StartNewHandInfo, op *holdem.Operator) {
 	mp := make(map[string]interface{})
 	mp["cards"] = cds
 	mp["order"] = seats
@@ -172,7 +159,7 @@ func (c *rec) PlayerGetCard(seat int8, cds []*holdem.Card, seats []int8, cnt int
 		Action:  SAGetMyCards,
 		Payload: b,
 	}
-	if isYourTurn {
+	if op.ID == c.id {
 		c.ch <- &ServerAction{
 			Action: SACanBet,
 			Seat:   op.SeatNumber,
@@ -196,7 +183,7 @@ func (c *rec) ErrorOccur(code int, err error) {
 	}
 }
 
-func (c *rec) PlayerBringInSuccess(seat int8, chip uint) {
+func (c *rec) PlayerBringInSuccess(seat int8, id string, chip uint) {
 	c.ch <- &ServerAction{
 		Action: SABringInSuccess,
 		Seat:   seat,
@@ -204,22 +191,14 @@ func (c *rec) PlayerBringInSuccess(seat int8, chip uint) {
 	}
 }
 
-func (c *rec) PlayerCanPayToPlay(int8) {
-
-}
-
-func (c *rec) PlayerPayToPlaySuccesss(int8) {
-
-}
-
-func (c *rec) PlayerSeatedSuccess(seat int8, payToPlay holdem.PlayType) {
+func (c *rec) PlayerSeatedSuccess(seat int8, id string, payToPlay holdem.PlayType) {
 	c.ch <- &ServerAction{
 		Action: SASelfSeated,
 		Seat:   seat,
 	}
 }
 
-func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
+func (c *rec) PlayerReadyStandUpSuccess(seat int8, id string) {
 	c.ch <- &ServerAction{
 		Action: SAReadyStandUp,
 		Seat:   seat,
@@ -227,7 +206,7 @@ func (c *rec) PlayerReadyStandUpSuccess(seat int8) {
 }
 
 //PlayerActionSuccess 玩家动作成功（按钮位, 位置，动作，金额(如果下注))
-func (c *rec) PlayerActionSuccess(bs int8, s int8, act holdem.ActionDef, num uint, h *holdem.Operator) {
+func (c *rec) PlayerActionSuccess(s int8, userID string, act holdem.ActionDef, num uint, h *holdem.Operator) {
 	c.ch <- &ServerAction{
 		Action:  SAMyAction,
 		Action2: act,
@@ -236,67 +215,9 @@ func (c *rec) PlayerActionSuccess(bs int8, s int8, act holdem.ActionDef, num uin
 	}
 }
 
-func (c *rec) PlayerKeepSeat(int8, time.Duration) {
-
-}
-
-//RoomerJoin 接收有人进入游戏
-func (c *rec) RoomerJoin(string) {
-
-}
-
-//RoomerLeave 接收有人离开游戏
-func (c *rec) RoomerLeave(string) {
-
-}
-
-//PlayerLeavSuccesse 接收有人离开游戏
-func (c *rec) PlayerLeaveSuccess(string) {
-
-}
-
-func (c *rec) RoomerKeepSeat(int8, time.Duration) {
-
-}
-func (c *rec) PlayerBuyInsuranceSuccess(seat int8, amount []*holdem.BuyInsurance) {
-
-}
-
-func (c *rec) PlayerCanNotBuyInsurance(seat int8, outsLen int, round holdem.Round) {
-
-}
-
-func (c *rec) PlayerCanBuyInsurance(seat int8, outsLen int, odds float64, outs map[int8][]*holdem.UserOut, round holdem.Round) {
-
-}
-
-func (c *rec) PlayerStandUp(seat int8, reason int8) {
+func (c *rec) PlayerStandUp(seat int8, userID string, reason int8) {
 	c.ch <- &ServerAction{
 		Action: SAStandUp,
 		Seat:   seat,
 	}
 }
-
-// type player struct {
-// 	id     string
-// 	name   string
-// 	avatar string
-// }
-
-// var _ string = (*player)(nil)
-
-// func (c *player) Name() string {
-// 	return c.name
-// }
-
-// func (c *player) Avatar() string {
-// 	return c.avatar
-// }
-
-// func (c *player) ID() string {
-// 	return c.id
-// }
-
-// func (c *player) Info() map[string]string {
-// 	return nil
-// }

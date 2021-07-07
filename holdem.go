@@ -202,11 +202,11 @@ func (c *Holdem) seated(i int8, r *Agent) {
 	r.gameInfo.te = c.payToPlayMap[i]
 	c.log.Debug("user seated", zap.Int8("seat", i), zap.String("na", c.players[i].ID()), zap.Int8("te", int8(r.gameInfo.te)))
 	//通知自己坐下了
-	r.recv.PlayerSeatedSuccess(i, r.gameInfo.te)
+	r.recv.PlayerSeatedSuccess(i, r.id, r.gameInfo.te)
 	//通知其他人
 	for uid, rr := range c.roomers {
 		if uid != r.ID() {
-			rr.recv.RoomerSeated(i, r.ID(), r.gameInfo.te)
+			rr.recv.RoomerSeated(i, r.id, r.gameInfo.te)
 		}
 	}
 	info := c.information()
@@ -228,10 +228,10 @@ func (c *Holdem) directStandUp(i int8, r *Agent) {
 
 func (c *Holdem) delayStandUp(i int8, r *Agent, tm time.Duration, reason int8) {
 	c.log.Debug("delay stand up", zap.Int8("seat", i), zap.String("user", r.ID()), zap.Duration("dur", tm))
-	r.recv.PlayerKeepSeat(i, tm)
+	r.recv.PlayerKeepSeat(i, r.id, tm)
 	for uid, rr := range c.roomers {
 		if uid != r.ID() {
-			rr.recv.RoomerKeepSeat(i, tm)
+			rr.recv.RoomerKeepSeat(i, r.id, tm)
 		}
 	}
 	time.AfterFunc(tm, func() {
@@ -264,11 +264,11 @@ func (c *Holdem) standUp(i int8, r *Agent, reason int8) {
 	delete(c.players, i)
 	c.playerCount--
 	//通知自己站起来了
-	r.recv.PlayerStandUp(i, reason)
+	r.recv.PlayerStandUp(i, r.id, reason)
 	//通知其他人
 	for uid, rr := range c.roomers {
 		if uid != r.ID() {
-			rr.recv.RoomerStandUp(i, r.ID(), reason)
+			rr.recv.RoomerStandUp(i, r.id, reason)
 		}
 	}
 }
@@ -369,7 +369,7 @@ func (c *Holdem) buttonPosition() bool {
 				if p.gameInfo.te == PlayTypeDisable {
 					p.gameInfo.te = PlayTypeNeedPayToPlay
 					//通知玩家可以补盲了
-					p.recv.PlayerCanPayToPlay(seat)
+					p.recv.PlayerCanPayToPlay(seat, p.id)
 				}
 				continue
 			}
@@ -642,12 +642,12 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		thisAgent := u
 		//稍微延迟告诉客户端可以下注
 		time.AfterFunc(delaySend, func() {
-			thisAgent.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op)
+			thisAgent.recv.PlayerActionSuccess(thisAgent.gameInfo.seatNumber, thisAgent.id, bet.Action, bet.Num, op)
 			c.seatLock.Lock()
 			defer c.seatLock.Unlock()
 			for uid, r := range c.roomers {
 				if uid != thisAgent.ID() {
-					r.recv.RoomerGetAction(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op, r == next)
+					r.recv.RoomerGetAction(thisAgent.gameInfo.seatNumber, thisAgent.id, bet.Action, bet.Num, op)
 				}
 			}
 		})
@@ -660,6 +660,7 @@ func (c *Holdem) preflop(op *Agent) ([]*Agent, bool) {
 		for _, v := range unfoldUsers {
 			scs = append(scs, &ShowCard{
 				SeatNumber: v.gameInfo.seatNumber,
+				ID:         v.id,
 				Cards:      v.gameInfo.cards,
 			})
 		}
@@ -742,12 +743,12 @@ func (c *Holdem) flopTurnRiver(u *Agent, round Round) ([]*Agent, bool) {
 		//稍微延迟告诉客户端可以下注
 		thisAgent := u
 		time.AfterFunc(delaySend, func() {
-			thisAgent.recv.PlayerActionSuccess(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op)
+			thisAgent.recv.PlayerActionSuccess(thisAgent.gameInfo.seatNumber, thisAgent.id, bet.Action, bet.Num, op)
 			c.seatLock.Lock()
 			defer c.seatLock.Unlock()
 			for uid, r := range c.roomers {
 				if uid != thisAgent.ID() {
-					r.recv.RoomerGetAction(c.button.gameInfo.seatNumber, thisAgent.gameInfo.seatNumber, bet.Action, bet.Num, op, r == next)
+					r.recv.RoomerGetAction(thisAgent.gameInfo.seatNumber, thisAgent.id, bet.Action, bet.Num, op)
 				}
 			}
 		})
@@ -866,7 +867,7 @@ func (c *Holdem) deal() *Agent {
 				cur = cur.nextAgent
 			} else {
 				cur.gameInfo.cards = cards[i]
-				cur.recv.PlayerGetCard(cur.gameInfo.seatNumber, cards[i], seats, int8(cnt), c.handStartInfo, op, cur == firstAg)
+				cur.recv.PlayerGetCard(cur.gameInfo.seatNumber, cur.id, cards[i], seats, int8(cnt), c.handStartInfo, op)
 				i++
 				seats = append(seats, cur.gameInfo.seatNumber)
 				cur = cur.nextAgent
@@ -899,7 +900,7 @@ func (c *Holdem) dealPublicCards(n int, round Round) ([]*Card, *Agent) {
 		c.seatLock.Lock()
 		defer c.seatLock.Unlock()
 		for _, r := range c.roomers {
-			r.recv.RoomerGetPublicCard(cards, firstOp, firstAg == r)
+			r.recv.RoomerGetPublicCard(cards, firstOp)
 		}
 	})
 	c.log.Debug("deal public cards(end)", zap.Int("cards_count", n))

@@ -47,7 +47,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 		//没有赔率，无法购买
 		odds, ok := c.options.insuranceOdds[o.Len]
 		if !ok {
-			u.recv.PlayerCanNotBuyInsurance(u.gameInfo.seatNumber, o.Len, round)
+			u.recv.PlayerCanNotBuyInsurance(u.gameInfo.seatNumber, u.id, o.Len, round)
 			continue
 		}
 		userOuts := make(map[int8][]*UserOut)
@@ -76,7 +76,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 			if r != nil {
 				ch <- r
 			}
-			u.recv.PlayerBuyInsuranceSuccess(u.gameInfo.seatNumber, buy)
+			u.recv.PlayerBuyInsuranceSuccess(u.gameInfo.seatNumber, u.id, buy)
 			c.seatLock.Lock()
 			for uid, rr := range c.roomers {
 				if uid != u.ID() {

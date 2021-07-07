@@ -10,6 +10,7 @@ type CardResult struct {
 
 type ShowCard struct {
 	SeatNumber int8
+	ID         string
 	Cards      []*Card
 }
 

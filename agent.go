@@ -186,7 +186,7 @@ func (c *Agent) BringIn(chip uint) {
 		}
 	}
 	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.id), zap.Uint("bringin", chip))
-	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, chip)
+	c.recv.PlayerBringInSuccess(c.gameInfo.seatNumber, c.id, chip)
 }
 
 //Seated 坐下（不输入座位号,自动寻座)
@@ -230,7 +230,7 @@ func (c *Agent) StandUp() {
 		c.h.directStandUp(c.gameInfo.seatNumber, c)
 		return
 	}
-	c.recv.PlayerReadyStandUpSuccess(c.gameInfo.seatNumber)
+	c.recv.PlayerReadyStandUpSuccess(c.gameInfo.seatNumber, c.id)
 }
 
 //Bet 下注
@@ -259,7 +259,7 @@ func (c *Agent) PayToPlay() {
 	if c.gameInfo.te == PlayTypeNeedPayToPlay {
 		c.gameInfo.te = PlayTypeAgreePayToPlay
 	}
-	c.recv.PlayerPayToPlaySuccesss(c.gameInfo.seatNumber)
+	c.recv.PlayerPayToPlaySuccesss(c.gameInfo.seatNumber, c.id)
 }
 
 func (c *Agent) canBet() bool {
@@ -318,7 +318,7 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 	//稍微延迟告诉客户端可以下注
 	time.AfterFunc(delaySend, func() {
 		c.log.Debug("wait buy insurance", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()), zap.Int("outslen", outsLen))
-		c.recv.PlayerCanBuyInsurance(c.gameInfo.seatNumber, outsLen, odds, outs, round)
+		c.recv.PlayerCanBuyInsurance(c.gameInfo.seatNumber, c.id, outsLen, odds, outs, round)
 	})
 	if c.auto {
 		return nil, nil
