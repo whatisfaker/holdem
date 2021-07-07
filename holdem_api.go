@@ -22,6 +22,11 @@ func (c *Holdem) Cancel() {
 	}
 }
 
+//ID 游戏标识
+func (c *Holdem) ID() string {
+	return c.id
+}
+
 //State 状态
 func (c *Holdem) State(rs ...*Agent) *HoldemState {
 	c.seatLock.Lock()
