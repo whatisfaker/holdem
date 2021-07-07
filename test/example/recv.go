@@ -92,7 +92,7 @@ func (c *rec) RoomerGetPublicCard(cds []*holdem.Card, op *holdem.Operator) {
 		Action:  SAGetPCards,
 		Payload: b,
 	}
-	if op.ID == c.id {
+	if op != nil && op.ID == c.id {
 		c.ch <- &ServerAction{
 			Action: SACanBet,
 			Seat:   op.SeatNumber,
@@ -124,7 +124,7 @@ func (c *rec) RoomerGetAction(seat int8, id string, action holdem.ActionDef, num
 		Seat:    seat,
 		Num:     num,
 	}
-	if op.ID == c.id {
+	if op != nil && op.ID == c.id {
 		c.ch <- &ServerAction{
 			Action: SACanBet,
 			Seat:   op.SeatNumber,
@@ -159,7 +159,7 @@ func (c *rec) PlayerGetCard(seat int8, id string, cds []*holdem.Card, seats []in
 		Action:  SAGetMyCards,
 		Payload: b,
 	}
-	if op.ID == c.id {
+	if op != nil && op.ID == c.id {
 		c.ch <- &ServerAction{
 			Action: SACanBet,
 			Seat:   op.SeatNumber,

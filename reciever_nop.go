@@ -91,4 +91,4 @@ func (c *NopReciever) PlayerReadyStandUpSuccess(seat int8, userID string) {}
 func (c *NopReciever) PlayerStandUp(seat int8, userID string, reasonCode int8) {}
 
 //PlayerKeepSeat 玩家占座(座位号)
-func (c *NopReciever) PlayerKeepSeat(seat int8, userID string, tm time.Duration)
+func (c *NopReciever) PlayerKeepSeat(seat int8, userID string, tm time.Duration) {}
