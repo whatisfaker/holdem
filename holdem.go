@@ -181,7 +181,7 @@ func (c *Holdem) leave(rs *Agent) {
 //Seated 坐下
 func (c *Holdem) seated(i int8, r *Agent) {
 	if r.gameInfo == nil || r.gameInfo.chip < c.ante+c.sb*2 {
-		r.ErrorOccur(ErrCodeNoChip, errNoChip)
+		r.recv.ErrorOccur(c.id, ErrCodeNoChip, errNoChip)
 		return
 	}
 	c.seatLock.Lock()
@@ -195,13 +195,13 @@ func (c *Holdem) seated(i int8, r *Agent) {
 		}
 		if i == 0 {
 			c.seatLock.Unlock()
-			r.ErrorOccur(ErrCodeTableIsFull, errTableIsFull)
+			r.recv.ErrorOccur(c.id, ErrCodeTableIsFull, errTableIsFull)
 			return
 		}
 	} else {
 		if c.players[i] != nil {
 			c.seatLock.Unlock()
-			r.ErrorOccur(ErrCodeSeatTaken, errSeatTaken)
+			r.recv.ErrorOccur(c.id, ErrCodeSeatTaken, errSeatTaken)
 			return
 		}
 	}

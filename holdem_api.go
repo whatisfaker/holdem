@@ -61,7 +61,7 @@ func (c *Holdem) ForceStandUp(id ...string) {
 	}
 }
 
-//ForcePlayerStandUp
+//ForcePlayerStandUp 强制n个玩家起身
 func (c *Holdem) ForcePlayerStandUp(count uint8) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
@@ -78,11 +78,38 @@ func (c *Holdem) ForcePlayerStandUp(count uint8) {
 		if ok {
 			r.gameInfo.needStandUpReason = StandUpGameExchange
 			if r.gameInfo.status == ActionDefNone {
-				c.standUp(seat, r, StandUpGameForce)
+				c.standUp(seat, r, StandUpGameExchange)
 			}
 			num--
 			if num == 0 {
 				return
+			}
+		}
+	}
+}
+
+func (c *Holdem) SendMessageTo(code int, v interface{}, uids []string, r ...*Agent) {
+	c.seatLock.Lock()
+	defer c.seatLock.Unlock()
+	var uid string
+	var seat int8
+	if len(r) > 0 {
+		uid = r[0].id
+		if r[0].gameInfo != nil && r[0].gameInfo.seatNumber > 0 {
+			seat = r[0].gameInfo.seatNumber
+		}
+	}
+	sendMap := make(map[string]bool)
+	for _, u := range uids {
+		sendMap[u] = true
+	}
+	for _, rr := range c.roomers {
+		//自己跳过
+		if _, ok := sendMap[rr.id]; ok {
+			if seat > 0 {
+				rr.recv.RoomerMessage(c.id, code, v, uid, seat)
+			} else {
+				rr.recv.RoomerMessage(c.id, code, v, uid)
 			}
 		}
 	}
@@ -101,6 +128,10 @@ func (c *Holdem) BroadcastMessage(code int, v interface{}, r ...*Agent) {
 		}
 	}
 	for _, rr := range c.roomers {
+		//自己跳过
+		if rr.id == uid {
+			continue
+		}
 		if seat > 0 {
 			rr.recv.RoomerMessage(c.id, code, v, uid, seat)
 		} else {

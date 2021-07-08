@@ -81,6 +81,15 @@ func (c *Agent) ID() string {
 	return c.id
 }
 
+//SendMessage 指定用户发送（对方用户在当前房间内)
+func (c *Agent) SendMessage(code int, v interface{}, uids ...string) {
+	if c.h == nil {
+		return
+	}
+	c.h.SendMessageTo(code, v, uids, c)
+}
+
+//SendMessageToAll 发送消息给房间内所有人（不包括自己)
 func (c *Agent) SendMessageToAll(code int, v interface{}) {
 	if c.h == nil {
 		return
@@ -88,36 +97,39 @@ func (c *Agent) SendMessageToAll(code int, v interface{}) {
 	c.h.BroadcastMessage(code, v, c)
 }
 
+//EnableAuto 开启托管
 func (c *Agent) EnableAuto() {
 	if c.h == nil {
 		return
 	}
 	if c.gameInfo == nil {
-		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
 		return
 	}
 	c.auto = true
 	c.h.autoOp(c, true)
 }
 
+//DisableAuto 关闭托管
 func (c *Agent) DisableAuto() {
 	if c.h == nil {
 		return
 	}
 	if c.gameInfo == nil {
-		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
 		return
 	}
 	c.auto = false
 	c.h.autoOp(c, false)
 }
 
+//AddTime 延时
 func (c *Agent) AddTime(dur time.Duration) {
 	if c.h == nil {
 		return
 	}
 	if c.gameInfo == nil {
-		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
 		return
 	}
 	c.addTime = dur
@@ -126,9 +138,163 @@ func (c *Agent) AddTime(dur time.Duration) {
 
 }
 
-func (c *Agent) ErrorOccur(a int, e error) {
-	c.log.Error("error", zap.Error(e), zap.String("id", c.id))
-	c.recv.ErrorOccur(c.h.id, a, e)
+// //ErrorOccur
+// func (c *Agent) ErrorOccur(a int, e error) {
+// 	c.log.Error("error", zap.Error(e), zap.String("id", c.id))
+// 	c.recv.ErrorOccur(c.h.id, a, e)
+// }
+
+//Join 加入游戏
+func (c *Agent) Join(holdem *Holdem) {
+	if c.h == holdem {
+		return
+	}
+	holdem.join(c)
+	c.h = holdem
+	c.gameInfo = nil
+}
+
+//Info 获取信息
+// func (c *Agent) Info() {
+// 	if c.h == nil {
+// 		c.recv.ErrorOccur(c.h.id,ErrCodeNoJoin, errNoJoin)
+// 		return
+// 	}
+// 	s := c.h.State()
+// 	for k := range s.Seated {
+// 		p := s.Seated[k]
+// 		if p.ID == c.id {
+// 			p.Cards = c.gameInfo.cards
+// 		}
+// 		s.Seated[k] = p
+// 	}
+// 	c.recv.RoomerGameInformation(c, s)
+// }
+
+//Leave 离开
+func (c *Agent) Leave(holdem *Holdem) {
+	if c.h == nil {
+		return
+	}
+	if c.gameInfo == nil {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber > 0 {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotStandUp, errNotStandUp)
+		return
+	}
+	holdem.leave(c)
+	c.h = nil
+}
+
+//BringIn 带入筹码
+func (c *Agent) BringIn(chip uint) {
+	if c.h == nil {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNoJoin, errNoJoin)
+		return
+	}
+	if c.h.status() == GameStatusComplete || c.h.status() == GameStatusCancel {
+		c.recv.ErrorOccur(c.h.id, ErrCodeGameOver, errGameOver)
+		return
+	}
+	if chip <= 0 {
+		c.recv.ErrorOccur(c.h.id, ErrCodeLessChip, errLessChip)
+		return
+	}
+	if c.gameInfo != nil {
+		c.gameInfo.bringIn += chip
+		c.gameInfo.chip += chip
+	} else {
+		c.gameInfo = &gameInfo{
+			chip:    chip,
+			bringIn: chip,
+		}
+	}
+	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.id), zap.Uint("bringin", chip))
+	c.recv.PlayerBringInSuccess(c.h.id, c.gameInfo.seatNumber, c.id, chip)
+}
+
+//Seated 坐下（不输入座位号,自动寻座)
+func (c *Agent) Seated(i ...int8) {
+	if c.h == nil {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNoJoin, errNoJoin)
+		return
+	}
+	if c.h.status() == GameStatusComplete || c.h.status() == GameStatusCancel {
+		c.recv.ErrorOccur(c.h.id, ErrCodeGameOver, errGameOver)
+		return
+	}
+	if c.gameInfo == nil {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber > 0 {
+		c.recv.ErrorOccur(c.h.id, ErrCodeAlreadySeated, errAlreadySeated)
+		return
+	}
+	if len(i) > 0 {
+		c.h.seated(i[0], c)
+		return
+	}
+	//auto find seat
+	c.h.seated(0, c)
+}
+
+//StandUp 站起来
+func (c *Agent) StandUp() {
+	if c.gameInfo == nil {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber <= 0 {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNoSeat, errNoSeat)
+		return
+	}
+	c.gameInfo.needStandUpReason = StandUpAction
+	if c.gameInfo.status == ActionDefNone {
+		c.h.directStandUp(c.gameInfo.seatNumber, c)
+		return
+	}
+	c.recv.PlayerReadyStandUpSuccess(c.h.id, c.gameInfo.seatNumber, c.id)
+}
+
+//Bet 下注
+func (c *Agent) Bet(bet *Bet) {
+	if c.canBet() {
+		c.betCh <- bet
+		return
+	}
+	c.recv.ErrorOccur(c.h.id, ErrCodeNotInBetTime, errNotInBetTime)
+}
+
+//PayToPlay 补盲
+func (c *Agent) PayToPlay() {
+	if c.gameInfo == nil {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
+		return
+	}
+	if c.gameInfo.seatNumber <= 0 {
+		c.recv.ErrorOccur(c.h.id, ErrCodeNoSeat, errNoSeat)
+		return
+	}
+	if c.gameInfo.te == PlayTypeDisable {
+		c.recv.ErrorOccur(c.h.id, ErrCodeCannotEnablePayToPlay, errCannotEnablePayToPlay)
+		return
+	}
+	if c.gameInfo.te == PlayTypeNeedPayToPlay {
+		c.gameInfo.te = PlayTypeAgreePayToPlay
+	}
+	c.recv.PlayerPayToPlaySuccesss(c.h.id, c.gameInfo.seatNumber, c.id)
+}
+
+//BuyInsurance 买保险
+func (c *Agent) BuyInsurance(insurance []*BuyInsurance) {
+	if c.canBuyInsurance() {
+		c.insuranceCh <- insurance
+		return
+	}
+	c.recv.ErrorOccur(c.h.id, ErrCodeNotInBetTime, errNotInBetTime)
 }
 
 //ShowUser 展示用户信息
@@ -156,150 +322,6 @@ func (c *Agent) displayUser(showCards bool) *ShowUser {
 	return c.showUser
 }
 
-//Join 加入游戏
-func (c *Agent) Join(holdem *Holdem) {
-	if c.h == holdem {
-		return
-	}
-	holdem.join(c)
-	c.h = holdem
-	c.gameInfo = nil
-}
-
-//Info 获取信息
-// func (c *Agent) Info() {
-// 	if c.h == nil {
-// 		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
-// 		return
-// 	}
-// 	s := c.h.State()
-// 	for k := range s.Seated {
-// 		p := s.Seated[k]
-// 		if p.ID == c.id {
-// 			p.Cards = c.gameInfo.cards
-// 		}
-// 		s.Seated[k] = p
-// 	}
-// 	c.recv.RoomerGameInformation(c, s)
-// }
-
-//Leave 离开
-func (c *Agent) Leave(holdem *Holdem) {
-	if c.h == nil {
-		return
-	}
-	if c.gameInfo == nil {
-		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
-		return
-	}
-	if c.gameInfo.seatNumber > 0 {
-		c.ErrorOccur(ErrCodeNotStandUp, errNotStandUp)
-		return
-	}
-	holdem.leave(c)
-	c.h = nil
-}
-
-//BringIn 带入筹码
-func (c *Agent) BringIn(chip uint) {
-	if c.h == nil {
-		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
-		return
-	}
-	if c.h.status() == GameStatusComplete || c.h.status() == GameStatusCancel {
-		c.ErrorOccur(ErrCodeGameOver, errGameOver)
-		return
-	}
-	if chip <= 0 {
-		c.ErrorOccur(ErrCodeLessChip, errLessChip)
-		return
-	}
-	if c.gameInfo != nil {
-		c.gameInfo.bringIn += chip
-		c.gameInfo.chip += chip
-	} else {
-		c.gameInfo = &gameInfo{
-			chip:    chip,
-			bringIn: chip,
-		}
-	}
-	c.log.Debug("user bring in", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("id", c.id), zap.Uint("bringin", chip))
-	c.recv.PlayerBringInSuccess(c.h.id, c.gameInfo.seatNumber, c.id, chip)
-}
-
-//Seated 坐下（不输入座位号,自动寻座)
-func (c *Agent) Seated(i ...int8) {
-	if c.h == nil {
-		c.ErrorOccur(ErrCodeNoJoin, errNoJoin)
-		return
-	}
-	if c.h.status() == GameStatusComplete || c.h.status() == GameStatusCancel {
-		c.ErrorOccur(ErrCodeGameOver, errGameOver)
-		return
-	}
-	if c.gameInfo == nil {
-		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
-		return
-	}
-	if c.gameInfo.seatNumber > 0 {
-		c.ErrorOccur(ErrCodeAlreadySeated, errAlreadySeated)
-		return
-	}
-	if len(i) > 0 {
-		c.h.seated(i[0], c)
-		return
-	}
-	//auto find seat
-	c.h.seated(0, c)
-}
-
-//StandUp 站起来
-func (c *Agent) StandUp() {
-	if c.gameInfo == nil {
-		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
-		return
-	}
-	if c.gameInfo.seatNumber <= 0 {
-		c.ErrorOccur(ErrCodeNoSeat, errNoSeat)
-		return
-	}
-	c.gameInfo.needStandUpReason = StandUpAction
-	if c.gameInfo.status == ActionDefNone {
-		c.h.directStandUp(c.gameInfo.seatNumber, c)
-		return
-	}
-	c.recv.PlayerReadyStandUpSuccess(c.h.id, c.gameInfo.seatNumber, c.id)
-}
-
-//Bet 下注
-func (c *Agent) Bet(bet *Bet) {
-	if c.canBet() {
-		c.betCh <- bet
-		return
-	}
-	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
-}
-
-//PayToPlay 补盲
-func (c *Agent) PayToPlay() {
-	if c.gameInfo == nil {
-		c.ErrorOccur(ErrCodeNotPlaying, errNotPlaying)
-		return
-	}
-	if c.gameInfo.seatNumber <= 0 {
-		c.ErrorOccur(ErrCodeNoSeat, errNoSeat)
-		return
-	}
-	if c.gameInfo.te == PlayTypeDisable {
-		c.ErrorOccur(ErrCodeCannotEnablePayToPlay, errCannotEnablePayToPlay)
-		return
-	}
-	if c.gameInfo.te == PlayTypeNeedPayToPlay {
-		c.gameInfo.te = PlayTypeAgreePayToPlay
-	}
-	c.recv.PlayerPayToPlaySuccesss(c.h.id, c.gameInfo.seatNumber, c.id)
-}
-
 func (c *Agent) canBet() bool {
 	return atomic.LoadInt32(&c.atomBetLock) == 1
 }
@@ -314,15 +336,6 @@ func (c *Agent) enableBet(enable bool) {
 	if atomic.LoadInt32(&c.atomBetLock) == 1 {
 		atomic.AddInt32(&c.atomBetLock, -1)
 	}
-}
-
-//Bet 下注
-func (c *Agent) BuyInsurance(insurance []*BuyInsurance) {
-	if c.canBuyInsurance() {
-		c.insuranceCh <- insurance
-		return
-	}
-	c.ErrorOccur(ErrCodeNotInBetTime, errNotInBetTime)
 }
 
 func (c *Agent) canBuyInsurance() bool {
@@ -381,7 +394,7 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 				cost += v.Num
 			}
 			if cost < c.gameInfo.chip {
-				c.ErrorOccur(ErrCodeInvalidInsurance, errInvalidInsurance)
+				c.recv.ErrorOccur(c.h.id, ErrCodeInvalidInsurance, errInvalidInsurance)
 				continue
 			}
 			amount = cost
@@ -499,7 +512,7 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 				return
 			} else {
 				c.log.Error("invalid bet num", zap.String("action", bet.Action.String()), zap.Uint("num", bet.Num), zap.Uint("maxbet", curBet), zap.Uint("mybeted", c.gameInfo.roundBet), zap.Uint("min_raise", minRaise), zap.Uint("mychip", c.gameInfo.chip))
-				c.ErrorOccur(err2.code, err2.err)
+				c.recv.ErrorOccur(c.h.id, err2.code, err2.err)
 			}
 		case <-timer.C:
 			for ; limit > 0; limit-- {

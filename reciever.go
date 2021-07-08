@@ -5,7 +5,7 @@ import "time"
 type Reciever interface {
 	//ErrorOccur 接收错误
 	ErrorOccur(string, int, error)
-	//RoomerMessage
+	//RoomerMessage 接收消息（uid == "" 代表是全局广播, 否则为来源uid的用户发送的)
 	RoomerMessage(hid string, code int, msg interface{}, uid string, seat ...int8)
 	//RoomerGameStart 游戏开始
 	RoomerGameStart(hid string)
