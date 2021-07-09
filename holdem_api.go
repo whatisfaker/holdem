@@ -7,16 +7,36 @@ import (
 //Start 开始游戏
 func (c *Holdem) Start() {
 	if atomic.LoadInt32(&c.gameStartedLock) == 0 {
-		atomic.StoreInt32(&c.gameStartedLock, int32(GameStatusStarted))
-		c.gameStatusCh <- GameStatusStarted
+		c.statusChange(GameStatusWaitHandStart)
+		c.gameStatusCh <- GameStatusWaitHandStart
 	}
+}
+
+//Pause 暂停
+func (c *Holdem) Pause() {
+	if !c.paused {
+		c.log.Debug("pause")
+		c.paused = true
+		c.pauseCh = make(chan bool)
+		c.seatLock.Lock()
+		defer c.seatLock.Unlock()
+		for _, rr := range c.roomers {
+			rr.recv.RoomerGamePauseResume(c.id, true)
+		}
+	}
+}
+
+//Resume 继续
+func (c *Holdem) Resume() {
+	close(c.pauseCh)
+	c.paused = false
 }
 
 //Cancel 提前取消
 func (c *Holdem) Cancel() {
-	if atomic.LoadInt32(&c.gameStartedLock) == 0 {
+	if atomic.LoadInt32(&c.gameStartedLock) == int32(GameStatusNotStart) {
 		c.gameStatusCh <- GameStatusCancel
-		atomic.StoreInt32(&c.gameStartedLock, int32(GameStatusCancel))
+		c.statusChange(GameStatusCancel)
 	} else {
 		c.log.Warn("can not cancel a started game")
 	}
@@ -27,7 +47,7 @@ func (c *Holdem) ID() string {
 	return c.id
 }
 
-//State 状态
+//State 实时状态
 func (c *Holdem) State(rs ...*Agent) *HoldemState {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()
@@ -88,6 +108,7 @@ func (c *Holdem) ForcePlayerStandUp(count uint8) {
 	}
 }
 
+//SendMessageTo 发送额外消息给游戏内某人
 func (c *Holdem) SendMessageTo(code int, v interface{}, uids []string, r ...*Agent) {
 	c.seatLock.Lock()
 	defer c.seatLock.Unlock()

@@ -13,10 +13,6 @@ type Recorder interface {
 type NopRecorder struct {
 }
 
-func newNopRecorder() Recorder {
-	return &NopRecorder{}
-}
-
 var _ Recorder = (*NopRecorder)(nil)
 
 func (c *NopRecorder) GameStart(*HoldemBase) {}

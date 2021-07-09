@@ -8,14 +8,19 @@ import (
 )
 
 type ShowUser struct {
-	ID         string
-	SeatNumber int8
-	Chip       uint
-	RoundBet   uint
-	Status     ActionDef
-	HandNum    uint
-	Te         PlayType
-	Cards      []*Card //坐着的用户返回信息带卡牌信息
+	ID             string
+	SeatNumber     int8
+	Chip           uint
+	RoundBet       uint
+	Status         ActionDef
+	HandNum        uint
+	Te             PlayType
+	Cards          []*Card //坐着的用户返回信息带卡牌信息
+	Action         bool    //是否操作
+	Auto           bool    //是否托管
+	DelayTimes     uint    //使用延时次数
+	AutoCheckTimes uint    //自动Check次数
+	AutoFoldTimes  uint    //自动Fold次数
 }
 
 type Agent struct {
@@ -106,7 +111,6 @@ func (c *Agent) EnableAuto() {
 		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
 		return
 	}
-	c.auto = true
 	c.h.autoOp(c, true)
 }
 
@@ -119,7 +123,6 @@ func (c *Agent) DisableAuto() {
 		c.recv.ErrorOccur(c.h.id, ErrCodeNotPlaying, errNotPlaying)
 		return
 	}
-	c.auto = false
 	c.h.autoOp(c, false)
 }
 
@@ -133,16 +136,10 @@ func (c *Agent) AddTime(dur time.Duration) {
 		return
 	}
 	c.addTime = dur
-	c.gameInfo.exceedTimes++
+	c.gameInfo.delayTimes++
 	c.h.exceedOpTime(c, dur)
 
 }
-
-// //ErrorOccur
-// func (c *Agent) ErrorOccur(a int, e error) {
-// 	c.log.Error("error", zap.Error(e), zap.String("id", c.id))
-// 	c.recv.ErrorOccur(c.h.id, a, e)
-// }
 
 //Join 加入游戏
 func (c *Agent) Join(holdem *Holdem) {
@@ -153,23 +150,6 @@ func (c *Agent) Join(holdem *Holdem) {
 	c.h = holdem
 	c.gameInfo = nil
 }
-
-//Info 获取信息
-// func (c *Agent) Info() {
-// 	if c.h == nil {
-// 		c.recv.ErrorOccur(c.h.id,ErrCodeNoJoin, errNoJoin)
-// 		return
-// 	}
-// 	s := c.h.State()
-// 	for k := range s.Seated {
-// 		p := s.Seated[k]
-// 		if p.ID == c.id {
-// 			p.Cards = c.gameInfo.cards
-// 		}
-// 		s.Seated[k] = p
-// 	}
-// 	c.recv.RoomerGameInformation(c, s)
-// }
 
 //Leave 离开
 func (c *Agent) Leave(holdem *Holdem) {
@@ -304,7 +284,8 @@ func (c *Agent) displayUser(showCards bool) *ShowUser {
 	}
 	if c.showUser == nil {
 		c.showUser = &ShowUser{
-			ID: c.id,
+			ID:   c.id,
+			Auto: c.auto,
 		}
 	}
 	if c.gameInfo == nil {
@@ -315,7 +296,11 @@ func (c *Agent) displayUser(showCards bool) *ShowUser {
 	c.showUser.RoundBet = c.gameInfo.roundBet
 	c.showUser.HandNum = c.gameInfo.handNum
 	c.showUser.Status = c.gameInfo.status
+	c.showUser.Action = c.gameInfo.isAction
 	c.showUser.Te = c.gameInfo.te
+	c.showUser.AutoCheckTimes = c.gameInfo.autoCheckTimes
+	c.showUser.AutoFoldTimes = c.gameInfo.autoFoldTimes
+	c.showUser.DelayTimes = c.gameInfo.delayTimes
 	if showCards {
 		c.showUser.Cards = c.gameInfo.cards
 	}
@@ -331,10 +316,15 @@ func (c *Agent) enableBet(enable bool) {
 		if atomic.LoadInt32(&c.atomBetLock) == 0 {
 			atomic.AddInt32(&c.atomBetLock, 1)
 		}
+		c.betCh = make(chan *Bet, 1)
+		c.gameInfo.delayTimes = 0
+		c.gameInfo.isAction = true
 		return
 	}
 	if atomic.LoadInt32(&c.atomBetLock) == 1 {
 		atomic.AddInt32(&c.atomBetLock, -1)
+		c.gameInfo.isAction = false
+		close(c.betCh)
 	}
 }
 
@@ -347,36 +337,34 @@ func (c *Agent) enableBuyInsurance(enable bool) {
 		if atomic.LoadInt32(&c.atomInsuranceLock) == 0 {
 			atomic.AddInt32(&c.atomInsuranceLock, 1)
 		}
+		c.insuranceCh = make(chan []*BuyInsurance, 1)
+		c.gameInfo.insurance = make(map[int8]*BuyInsurance)
+		c.gameInfo.delayTimes = 0
 		return
 	}
 	if atomic.LoadInt32(&c.atomInsuranceLock) == 1 {
 		atomic.AddInt32(&c.atomInsuranceLock, -1)
+		close(c.insuranceCh)
 	}
 }
 
 func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*UserOut, round Round, timeout time.Duration) (*InsuranceResult, []*BuyInsurance) {
-	c.enableBuyInsurance(true)
-	c.insuranceCh = make(chan []*BuyInsurance, 1)
-	c.gameInfo.insurance = make(map[int8]*BuyInsurance)
-	c.gameInfo.exceedTimes = 0
-	timer := time.NewTimer(timeout)
 	var amount uint
 	defer func() {
-		c.enableBuyInsurance(false)
-		close(c.insuranceCh)
-		timer.Stop()
 		c.log.Debug("buy insurance end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Uint("amount", amount), zap.String("round", round.String()))
 	}()
-	//稍微延迟告诉客户端可以下注
-	time.AfterFunc(delaySend, func() {
-		c.log.Debug("wait buy insurance", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.String("round", round.String()), zap.Int("outslen", outsLen))
-		c.recv.PlayerCanBuyInsurance(c.h.id, c.gameInfo.seatNumber, c.id, outsLen, odds, outs, round)
-	})
 	if c.auto {
+		time.Sleep(2 * delaySend)
 		return nil, nil
 	}
+	c.enableBuyInsurance(true)
+	timer := time.NewTimer(timeout)
+	defer func() {
+		c.enableBuyInsurance(false)
+		timer.Stop()
+	}()
 	//循环如果投注错误,还可以让客户重新投注直到超时
-	limit := c.h.options.delayLimitTimes
+	limit := c.h.options.limitDelayTimes
 	for {
 	L:
 		select {
@@ -385,7 +373,6 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 				return nil, nil
 			}
 			if c.auto {
-				c.auto = false
 				c.h.autoOp(c, false)
 			}
 			var cost uint
@@ -409,14 +396,10 @@ func (c *Agent) waitBuyInsurance(outsLen int, odds float64, outs map[int8][]*Use
 				if c.addTime == 0 {
 					break
 				}
+				c.h.addWaitTime(c.addTime)
 				timer = time.NewTimer(c.addTime)
 				c.addTime = 0
 				break L
-			}
-			c.gameInfo.autoTimes++
-			if c.gameInfo.autoTimes >= 4 {
-				c.auto = true
-				c.h.autoOp(c, true)
 			}
 			return nil, nil
 		}
@@ -465,18 +448,14 @@ type BetGroup struct {
 // }
 
 func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Duration) (rbet *Bet) {
-	c.enableBet(true)
-	c.betCh = make(chan *Bet, 1)
-	c.gameInfo.exceedTimes = 0
-	timer := time.NewTimer(timeout)
 	defer func() {
 		c.enableBet(false)
-		close(c.betCh)
-		timer.Stop()
 		c.log.Debug("bet end", zap.Int8("seat", c.gameInfo.seatNumber), zap.String("status", c.gameInfo.status.String()), zap.Uint("amount", rbet.Num), zap.Bool("auto", rbet.Auto), zap.String("round", round.String()))
 	}()
 	//托管直接操作
 	if c.auto {
+		//延时一下
+		time.Sleep(2 * delaySend)
 		c.gameInfo.status = ActionDefCheck
 		rbet = &Bet{
 			Action: ActionDefCheck,
@@ -489,8 +468,12 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 		}
 		return
 	}
+	timer := time.NewTimer(timeout)
+	defer func() {
+		timer.Stop()
+	}()
 	//循环如果投注错误,还可以让客户重新投注直到超时
-	limit := c.h.options.delayLimitTimes
+	limit := c.h.options.limitDelayTimes
 	for {
 	L:
 		select {
@@ -498,8 +481,8 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 			if !ok {
 				return nil
 			}
+			//有操作,脱离托管
 			if c.auto {
-				c.auto = false
 				c.h.autoOp(c, false)
 			}
 			if valid, err2 := c.isValidBet(bet, curBet, minRaise, round); valid {
@@ -507,7 +490,6 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 				c.gameInfo.handBet += bet.Num
 				c.gameInfo.roundBet += bet.Num
 				c.gameInfo.chip -= bet.Num
-				c.enableBet(false)
 				rbet = bet
 				return
 			} else {
@@ -519,6 +501,7 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 				if c.addTime == 0 {
 					break
 				}
+				c.h.addWaitTime(c.addTime)
 				timer = time.NewTimer(c.addTime)
 				c.addTime = 0
 				break L
@@ -533,10 +516,13 @@ func (c *Agent) waitBet(curBet uint, minRaise uint, round Round, timeout time.Du
 			if valid, _ := c.isValidBet(rbet, curBet, minRaise, round); !valid {
 				rbet.Action = ActionDefFold
 				c.gameInfo.status = ActionDefFold
+				c.gameInfo.autoFoldTimes++
+			} else {
+				c.gameInfo.autoCheckTimes++
 			}
-			c.gameInfo.autoTimes++
-			if c.gameInfo.autoTimes >= 4 {
-				c.auto = true
+			//自动操作超过限制托管
+			if c.gameInfo.autoFoldTimes >= c.h.options.limitAutoFoldTimes ||
+				c.gameInfo.autoCheckTimes >= c.h.options.limitAutoCheckTimes {
 				c.h.autoOp(c, true)
 			}
 			return

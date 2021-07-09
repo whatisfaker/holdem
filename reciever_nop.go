@@ -13,6 +13,8 @@ func (c *NopReciever) ErrorOccur(string, int, error) {}
 //RoomerJoin 接收有人进入游戏
 func (c *NopReciever) RoomerJoin(hid string, userID string) {}
 
+func (c *NopReciever) RoomerGamePauseResume(hid string, a bool) {}
+
 //RoomerLeave 接收有人离开游戏
 func (c *NopReciever) RoomerLeave(hid string, userID string) {}
 
@@ -33,8 +35,11 @@ func (c *NopReciever) RoomerGetPublicCard(hid string, cards []*Card, op *Operato
 func (c *NopReciever) RoomerGetAction(hid string, seat int8, usreID string, act ActionDef, num uint, op *Operator) {
 }
 
+func (c *NopReciever) RoomerGetWaitInsurance(hid string, seat int8, uid string, dur time.Duration, round Round) {
+}
+
 //RoomerGetBuyInsurance 接收谁购买了保险的信息
-func (c *NopReciever) RoomerGetBuyInsurance(hid string, seat int8, buy []*BuyInsurance, round Round) {
+func (c *NopReciever) RoomerGetBuyInsurance(hid string, seat int8, uid string, buy []*BuyInsurance, round Round) {
 }
 
 //RoomerGetShowCards 接收亮牌信息
@@ -111,4 +116,7 @@ func (c *NopReciever) RoomerAutoOp(hid string, seat int8, userID string, open bo
 
 //RoomerMessage
 func (c *NopReciever) RoomerMessage(hid string, code int, msg interface{}, uid string, seat ...int8) {
+}
+
+func (c *NopReciever) PlayerExceedTimeSuccess(hid string, seat int8, uid string, times int8, tm time.Duration) {
 }

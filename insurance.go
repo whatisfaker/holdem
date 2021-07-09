@@ -2,6 +2,7 @@ package holdem
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -14,6 +15,7 @@ type UserOut struct {
 }
 
 func (c *Holdem) insuranceStart(users []*Agent, round Round) {
+	c.waitPause()
 	//@TODO背保险
 	c.log.Debug(round.String() + " buy insurance begin")
 	cardsMap := make(map[int8][]*Card)
@@ -28,6 +30,9 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 	grp, _ := errgroup.WithContext(context.Background())
 	ch := make(chan *InsuranceResult, len(users))
 	c.insuranceUsers = make([]*Agent, 0)
+	c.insuranceInformation = make(map[int8]map[int8][]*UserOut)
+	c.waitPause()
+	c.addWaitTime(c.options.insuranceWaitTimeout + delaySend)
 	for leaderSeat, potOuts := range leaderOuts {
 		u := us[leaderSeat]
 		var insPot *Pot
@@ -71,7 +76,20 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 				})
 			}
 		}
+		c.insuranceInformation[leaderSeat] = userOuts
 		grp.Go(func() error {
+			//稍微延迟告诉客户端可以买保险了
+			time.AfterFunc(delaySend, func() {
+				c.log.Debug("wait buy insurance", zap.Int8("seat", u.gameInfo.seatNumber), zap.String("status", u.gameInfo.status.String()), zap.String("round", round.String()), zap.Int("outslen", o.Len))
+				u.recv.PlayerCanBuyInsurance(c.id, u.gameInfo.seatNumber, c.id, o.Len, odds, userOuts, round)
+				c.seatLock.Lock()
+				for uid, rr := range c.roomers {
+					if uid != u.ID() {
+						rr.recv.RoomerGetWaitInsurance(c.id, u.gameInfo.seatNumber, u.id, c.options.insuranceWaitTimeout, round)
+					}
+				}
+				c.seatLock.Unlock()
+			})
 			r, buy := u.waitBuyInsurance(o.Len, odds, userOuts, round, c.options.insuranceWaitTimeout)
 			if r != nil {
 				ch <- r
@@ -80,7 +98,7 @@ func (c *Holdem) insuranceStart(users []*Agent, round Round) {
 			c.seatLock.Lock()
 			for uid, rr := range c.roomers {
 				if uid != u.ID() {
-					rr.recv.RoomerGetBuyInsurance(c.id, u.gameInfo.seatNumber, buy, round)
+					rr.recv.RoomerGetBuyInsurance(c.id, u.gameInfo.seatNumber, u.id, buy, round)
 				}
 			}
 			c.seatLock.Unlock()

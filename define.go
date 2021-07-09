@@ -13,7 +13,13 @@ const (
 
 const (
 	GameStatusNotStart int8 = iota
-	GameStatusStarted
+	GameStatusWaitHandStart
+	GameStatusHandStartd
+	GameStatusHandPreflop
+	GameStatusHandFlop
+	GameStatusHandTurn
+	GameStatusHandRiver
+	GameStatusHandEnd
 	GameStatusCancel
 	GameStatusComplete
 )

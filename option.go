@@ -18,7 +18,9 @@ type extOptions struct {
 	minPlayers              int8 //最小游戏人数
 	delayStandUpTimeout     time.Duration
 	waitForNotEnoughPlayers time.Duration //人数不够等待时间
-	delayLimitTimes         uint          //延迟操作次数上线
+	limitDelayTimes         uint          //延迟操作限制次数
+	limitAutoCheckTimes     uint          //自动check限制次数
+	limitAutoFoldTimes      uint          //自动flod限制次数
 }
 
 type HoldemOption interface {
@@ -100,5 +102,23 @@ func OptionWaitForRebuy(dur time.Duration) HoldemOption {
 func OptionWaitForNotEnoughPlayers(dur time.Duration) HoldemOption {
 	return newFuncOption(func(o *extOptions) {
 		o.waitForNotEnoughPlayers = dur
+	})
+}
+
+func OptionLimitDelayTimes(times uint) HoldemOption {
+	return newFuncOption(func(o *extOptions) {
+		o.limitDelayTimes = times
+	})
+}
+
+func OptionLimitAutoCheckTimes(times uint) HoldemOption {
+	return newFuncOption(func(o *extOptions) {
+		o.limitAutoCheckTimes = times
+	})
+}
+
+func OptionLimitAutoFoldTimes(times uint) HoldemOption {
+	return newFuncOption(func(o *extOptions) {
+		o.limitAutoFoldTimes = times
 	})
 }

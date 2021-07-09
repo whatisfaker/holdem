@@ -9,6 +9,8 @@ type Reciever interface {
 	RoomerMessage(hid string, code int, msg interface{}, uid string, seat ...int8)
 	//RoomerGameStart 游戏开始
 	RoomerGameStart(hid string)
+	//RoomerGamePauseResume 游戏暂停/继续
+	RoomerGamePauseResume(hid string, pausedOrResume bool)
 	//RoomerGameEnd 游戏结束
 	RoomerGameEnd(hid string)
 	//RoomerPots 当前池
@@ -29,8 +31,10 @@ type Reciever interface {
 	RoomerGetPublicCard(hid string, cards []*Card, op *Operator)
 	//RoomerGetAction 接收有人动作（位置，用户, 动作，金额(如果下注),当前要操作者)
 	RoomerGetAction(hid string, seat int8, usreID string, act ActionDef, num uint, op *Operator)
+	//RoomerGetWaitInsurance 接收谁开始买保险
+	RoomerGetWaitInsurance(hid string, seat int8, uid string, dur time.Duration, round Round)
 	//RoomerGetBuyInsurance 接收谁购买了保险的信息
-	RoomerGetBuyInsurance(hid string, seat int8, buy []*BuyInsurance, round Round)
+	RoomerGetBuyInsurance(hid string, seat int8, uid string, buy []*BuyInsurance, round Round)
 	//RoomerGetShowCards 接收亮牌信息
 	RoomerGetShowCards(hid string, cards []*ShowCard)
 	//RoomerGetResult 接收牌局结果
@@ -67,4 +71,6 @@ type Reciever interface {
 	PlayerStandUp(hid string, seat int8, userID string, reasonCode int8)
 	//PlayerKeepSeat 玩家占座(座位号)
 	PlayerKeepSeat(hid string, seat int8, userID string, tm time.Duration)
+	//PlayerExceedTimeSuccess 玩家延时成功
+	PlayerExceedTimeSuccess(hid string, seat int8, uid string, times int8, tm time.Duration)
 }

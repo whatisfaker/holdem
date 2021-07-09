@@ -27,9 +27,10 @@ type gameInfo struct {
 	seatNumber        int8
 	status            ActionDef
 	needStandUpReason int8 //需要离开
-	roundBet          uint
-	handBet           uint
+	roundBet          uint //本轮下注
+	handBet           uint //本手下注
 	bringIn           uint
+	isAction          bool //是否该行动
 	te                PlayType
 	chip              uint
 	cards             []*Card
@@ -38,8 +39,9 @@ type gameInfo struct {
 	cardResults       []*CardResult
 	insurance         map[int8]*BuyInsurance //CardValue: buy
 	autoHandNum       uint
-	autoTimes         uint
-	exceedTimes       uint
+	autoFoldTimes     uint
+	autoCheckTimes    uint
+	delayTimes        uint //延时次数
 }
 
 func (c *gameInfo) calcHandValue(pc []*Card) {

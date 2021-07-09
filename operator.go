@@ -1,8 +1,12 @@
 package holdem
 
+import "time"
+
 type Operator struct {
 	//ID
 	ID string
+	//Wait 等待操作时间
+	Wait time.Duration
 	//SeatNumber 座位号
 	SeatNumber int8
 	//Chip 手上筹码
@@ -19,12 +23,13 @@ type Operator struct {
 	CurrentTableBet uint
 }
 
-func newOperator(r *Agent, bet uint, minRaise uint) *Operator {
+func newOperator(r *Agent, bet uint, minRaise uint, wait time.Duration) *Operator {
 	if r == nil {
 		return nil
 	}
 	return &Operator{
 		ID:              r.ID(),
+		Wait:            wait,
 		SeatNumber:      r.gameInfo.seatNumber,
 		Chip:            r.gameInfo.chip,
 		BringIn:         r.gameInfo.bringIn,
